@@ -13,6 +13,8 @@ Please refer to the [protocol design document](https://docs.google.com/document/
 ## Setup
 To install all required packages, run:
 ```
+python3 -m venv venv
+source venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 ```
