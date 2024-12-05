@@ -1,0 +1,34 @@
+{
+    "name": "XGovRegistry",
+    "methods": [
+        {
+            "name": "subscribe_xgov",
+            "args": [
+                {
+                    "type": "address",
+                    "name": "voting_address"
+                },
+                {
+                    "type": "pay",
+                    "name": "payment"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "unsubscribe_xgov",
+            "args": [
+                {
+                    "type": "address",
+                    "name": "xgov_address"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        }
+    ],
+    "networks": {}
+}

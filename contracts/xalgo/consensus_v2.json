@@ -1,0 +1,309 @@
+{
+    "name": "Consensus",
+    "methods": [
+        {
+            "name": "initialise",
+            "args": [],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "update_admin",
+            "args": [
+                {
+                    "type": "string",
+                    "name": "admin_type"
+                },
+                {
+                    "type": "address",
+                    "name": "new_admin"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "schedule_update_sc",
+            "args": [
+                {
+                    "type": "byte[32]",
+                    "name": "approval_sha256"
+                },
+                {
+                    "type": "byte[32]",
+                    "name": "clear_sha256"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "update_sc",
+            "args": [],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "add_proposer",
+            "args": [
+                {
+                    "type": "account",
+                    "name": "proposer"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "update_max_proposer_balance",
+            "args": [
+                {
+                    "type": "uint64",
+                    "name": "new_max_proposer_balance"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "update_fee",
+            "args": [
+                {
+                    "type": "uint64",
+                    "name": "new_fee"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "claim_fee",
+            "args": [],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "update_premium",
+            "args": [
+                {
+                    "type": "uint64",
+                    "name": "new_premium"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "pause_minting",
+            "args": [
+                {
+                    "type": "string",
+                    "name": "minting_type"
+                },
+                {
+                    "type": "bool",
+                    "name": "to_pause"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "set_proposer_admin",
+            "args": [
+                {
+                    "type": "uint8",
+                    "name": "proposer_index"
+                },
+                {
+                    "type": "address",
+                    "name": "new_proposer_admin"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "register_online",
+            "args": [
+                {
+                    "type": "pay",
+                    "name": "send_algo"
+                },
+                {
+                    "type": "uint8",
+                    "name": "proposer_index"
+                },
+                {
+                    "type": "address",
+                    "name": "vote_key"
+                },
+                {
+                    "type": "address",
+                    "name": "sel_key"
+                },
+                {
+                    "type": "byte[64]",
+                    "name": "state_proof_key"
+                },
+                {
+                    "type": "uint64",
+                    "name": "vote_first"
+                },
+                {
+                    "type": "uint64",
+                    "name": "vote_last"
+                },
+                {
+                    "type": "uint64",
+                    "name": "vote_key_dilution"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "register_offline",
+            "args": [
+                {
+                    "type": "uint8",
+                    "name": "proposer_index"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "subscribe_xgov",
+            "args": [
+                {
+                    "type": "pay",
+                    "name": "send_algo"
+                },
+                {
+                    "type": "uint8",
+                    "name": "proposer_index"
+                },
+                {
+                    "type": "application",
+                    "name": "xgov_registry"
+                },
+                {
+                    "type": "address",
+                    "name": "voting_address"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "unsubscribe_xgov",
+            "args": [
+                {
+                    "type": "uint8",
+                    "name": "proposer_index"
+                },
+                {
+                    "type": "application",
+                    "name": "xgov_registry"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "immediate_mint",
+            "args": [
+                {
+                    "type": "pay",
+                    "name": "send_algo"
+                },
+                {
+                    "type": "uint64",
+                    "name": "min_received"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "delayed_mint",
+            "args": [
+                {
+                    "type": "pay",
+                    "name": "send_algo"
+                },
+                {
+                    "type": "byte[2]",
+                    "name": "nonce"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "claim_delayed_mint",
+            "args": [
+                {
+                    "type": "address",
+                    "name": "receiver"
+                },
+                {
+                    "type": "byte[2]",
+                    "name": "nonce"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "burn",
+            "args": [
+                {
+                    "type": "axfer",
+                    "name": "send_xalgo"
+                },
+                {
+                    "type": "uint64",
+                    "name": "min_received"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "get_xalgo_rate",
+            "args": [],
+            "returns": {
+                "type": "(uint64,uint64,byte[])"
+            }
+        },
+        {
+            "name": "dummy",
+            "args": [],
+            "returns": {
+                "type": "void"
+            }
+        }
+    ],
+    "networks": {}
+}

@@ -1,0 +1,62 @@
+{
+    "name": "Consensus",
+    "methods": [
+        {
+            "name": "create",
+            "args": [
+                {
+                    "type": "address",
+                    "name": "admin"
+                },
+                {
+                    "type": "address",
+                    "name": "register_admin"
+                },
+                {
+                    "type": "uint64",
+                    "name": "min_proposer_balance"
+                },
+                {
+                    "type": "uint64",
+                    "name": "max_proposer_balance"
+                },
+                {
+                    "type": "uint64",
+                    "name": "premium"
+                },
+                {
+                    "type": "uint64",
+                    "name": "fee"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "initialise",
+            "args": [
+                {
+                    "type": "account",
+                    "name": "proposer"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        },
+        {
+            "name": "mint",
+            "args": [
+                {
+                    "type": "pay",
+                    "name": "send_algo"
+                }
+            ],
+            "returns": {
+                "type": "void"
+            }
+        }
+    ],
+    "networks": {}
+}

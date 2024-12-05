@@ -1,0 +1,11 @@
+cffi==1.16.0
+docstring-parser==0.14.1
+executing==2.0.1
+msgpack==1.0.8
+py-algorand-sdk==2.6.1
+pycparser==2.22
+pycryptodomex==3.20.0
+PyNaCl==1.5.0
+pyteal==0.26.1
+semantic-version==2.10.0
+tabulate==0.9.0
