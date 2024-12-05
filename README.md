@@ -32,7 +32,7 @@ The `contracts` folder contains the following:
 
 - `contracts/common` contains common checks, inner transactions and a math library.
 - `contracts/testing` contains all the smart contracts relating to testing. These are not deployed.
-- `contracts/xlgo` contains all the smart contracts relating to the newest version of ALGO Liquid Staking. These will be deployed.
+- `contracts/xalgo` contains all the smart contracts relating to the newest version of ALGO Liquid Staking. These will be deployed.
 
 ## Testing
 
