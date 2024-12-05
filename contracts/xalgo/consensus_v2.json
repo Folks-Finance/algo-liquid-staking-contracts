@@ -1,8 +1,10 @@
 {
     "name": "Consensus",
+    "desc": "Allows users to participate in consensus and receive a liquid staking token",
     "methods": [
         {
             "name": "initialise",
+            "desc": "Initialise the app after the currently deployed app is updated to it. Callable only once",
             "args": [],
             "returns": {
                 "type": "void"
@@ -10,14 +12,17 @@
         },
         {
             "name": "update_admin",
+            "desc": "Privileged operation to update an admin address",
             "args": [
                 {
                     "type": "string",
-                    "name": "admin_type"
+                    "name": "admin_type",
+                    "desc": "The admin to update"
                 },
                 {
                     "type": "address",
-                    "name": "new_admin"
+                    "name": "new_admin",
+                    "desc": "The new admin address"
                 }
             ],
             "returns": {
@@ -26,14 +31,17 @@
         },
         {
             "name": "schedule_update_sc",
+            "desc": "Privileged operation to schedule an update of the app",
             "args": [
                 {
                     "type": "byte[32]",
-                    "name": "approval_sha256"
+                    "name": "approval_sha256",
+                    "desc": "The sha256 hash of the new approval program"
                 },
                 {
                     "type": "byte[32]",
-                    "name": "clear_sha256"
+                    "name": "clear_sha256",
+                    "desc": "The sha256 hash of the new clear program"
                 }
             ],
             "returns": {
@@ -42,6 +50,7 @@
         },
         {
             "name": "update_sc",
+            "desc": "Privileged operation to confirm an update of the app",
             "args": [],
             "returns": {
                 "type": "void"
@@ -49,10 +58,12 @@
         },
         {
             "name": "add_proposer",
+            "desc": "Privileged operation to add a new proposer",
             "args": [
                 {
                     "type": "account",
-                    "name": "proposer"
+                    "name": "proposer",
+                    "desc": "The proposer to add"
                 }
             ],
             "returns": {
@@ -61,10 +72,12 @@
         },
         {
             "name": "update_max_proposer_balance",
+            "desc": "Privileged operation to update the max proposer balance",
             "args": [
                 {
                     "type": "uint64",
-                    "name": "new_max_proposer_balance"
+                    "name": "new_max_proposer_balance",
+                    "desc": "The new max proposer balance"
                 }
             ],
             "returns": {
@@ -73,10 +86,12 @@
         },
         {
             "name": "update_fee",
+            "desc": "Privileged operation to update the fee",
             "args": [
                 {
                     "type": "uint64",
-                    "name": "new_fee"
+                    "name": "new_fee",
+                    "desc": "The new fee"
                 }
             ],
             "returns": {
@@ -85,6 +100,7 @@
         },
         {
             "name": "claim_fee",
+            "desc": "Send the pending fees earned to the admin",
             "args": [],
             "returns": {
                 "type": "void"
@@ -92,10 +108,12 @@
         },
         {
             "name": "update_premium",
+            "desc": "Privileged operation to update the premium",
             "args": [
                 {
                     "type": "uint64",
-                    "name": "new_premium"
+                    "name": "new_premium",
+                    "desc": "The new premium"
                 }
             ],
             "returns": {
@@ -104,14 +122,17 @@
         },
         {
             "name": "pause_minting",
+            "desc": "Privileged operation to pause or resume the minting",
             "args": [
                 {
                     "type": "string",
-                    "name": "minting_type"
+                    "name": "minting_type",
+                    "desc": "Whether to pause the immediate mint or delayed mint"
                 },
                 {
                     "type": "bool",
-                    "name": "to_pause"
+                    "name": "to_pause",
+                    "desc": "Whether to pause"
                 }
             ],
             "returns": {
@@ -120,14 +141,17 @@
         },
         {
             "name": "set_proposer_admin",
+            "desc": "Privileged operation to set the proposer admin. If the caller is the register admin and there already exists a proposer admin, the new proposer admin will be scheduled.",
             "args": [
                 {
                     "type": "uint8",
-                    "name": "proposer_index"
+                    "name": "proposer_index",
+                    "desc": "The index of proposer to set the admin of"
                 },
                 {
                     "type": "address",
-                    "name": "new_proposer_admin"
+                    "name": "new_proposer_admin",
+                    "desc": "The new proposer admin"
                 }
             ],
             "returns": {
@@ -136,38 +160,47 @@
         },
         {
             "name": "register_online",
+            "desc": "Privileged operation to register a proposer online",
             "args": [
                 {
                     "type": "pay",
-                    "name": "send_algo"
+                    "name": "send_algo",
+                    "desc": "Send ALGO to the proposer to pay for the register online fee"
                 },
                 {
                     "type": "uint8",
-                    "name": "proposer_index"
+                    "name": "proposer_index",
+                    "desc": "The index of proposer to register online with"
                 },
                 {
                     "type": "address",
-                    "name": "vote_key"
+                    "name": "vote_key",
+                    "desc": "The root participation public key (if any) currently registered for this round"
                 },
                 {
                     "type": "address",
-                    "name": "sel_key"
+                    "name": "sel_key",
+                    "desc": "The selection public key (if any) currently registered for this round"
                 },
                 {
                     "type": "byte[64]",
-                    "name": "state_proof_key"
+                    "name": "state_proof_key",
+                    "desc": "The root of the state proof key (if any)"
                 },
                 {
                     "type": "uint64",
-                    "name": "vote_first"
+                    "name": "vote_first",
+                    "desc": "The first round for which this participation is valid"
                 },
                 {
                     "type": "uint64",
-                    "name": "vote_last"
+                    "name": "vote_last",
+                    "desc": "The last round for which this participation is valid"
                 },
                 {
                     "type": "uint64",
-                    "name": "vote_key_dilution"
+                    "name": "vote_key_dilution",
+                    "desc": "The number of subkeys in each batch of participation keys"
                 }
             ],
             "returns": {
@@ -176,10 +209,12 @@
         },
         {
             "name": "register_offline",
+            "desc": "Privileged operation to register a proposer offline",
             "args": [
                 {
                     "type": "uint8",
-                    "name": "proposer_index"
+                    "name": "proposer_index",
+                    "desc": "The index of proposer to register offline with"
                 }
             ],
             "returns": {
@@ -188,22 +223,27 @@
         },
         {
             "name": "subscribe_xgov",
+            "desc": "Privileged operation to subscribe a proposer to xGov",
             "args": [
                 {
                     "type": "pay",
-                    "name": "send_algo"
+                    "name": "send_algo",
+                    "desc": "Send ALGO to the app to pay for the xGov registry fee"
                 },
                 {
                     "type": "uint8",
-                    "name": "proposer_index"
+                    "name": "proposer_index",
+                    "desc": "The index of proposer to subscribe to xGov with"
                 },
                 {
                     "type": "application",
-                    "name": "xgov_registry"
+                    "name": "xgov_registry",
+                    "desc": "The xGov registry app"
                 },
                 {
                     "type": "address",
-                    "name": "voting_address"
+                    "name": "voting_address",
+                    "desc": "The address which can vote on behalf of the proposer"
                 }
             ],
             "returns": {
@@ -212,14 +252,17 @@
         },
         {
             "name": "unsubscribe_xgov",
+             "desc": "Privileged operation to unsubscribe a proposer from xgov",
             "args": [
                 {
                     "type": "uint8",
-                    "name": "proposer_index"
+                    "name": "proposer_index",
+                    "desc": "The index of proposer to unsubscribe from xgov with"
                 },
                 {
                     "type": "application",
-                    "name": "xgov_registry"
+                    "name": "xgov_registry",
+                    "desc": "The xGov registry app"
                 }
             ],
             "returns": {
@@ -228,14 +271,17 @@
         },
         {
             "name": "immediate_mint",
+            "desc": "Send ALGO to the app and receive xALGO immediately",
             "args": [
                 {
                     "type": "pay",
-                    "name": "send_algo"
+                    "name": "send_algo",
+                    "desc": "Send ALGO to the app to mint"
                 },
                 {
                     "type": "uint64",
-                    "name": "min_received"
+                    "name": "min_received",
+                    "desc": "The minimum amount of xALGO to receive in return"
                 }
             ],
             "returns": {
@@ -244,14 +290,17 @@
         },
         {
             "name": "delayed_mint",
+            "desc": "Send ALGO to the app and receive xALGO after 320 rounds",
             "args": [
                 {
                     "type": "pay",
-                    "name": "send_algo"
+                    "name": "send_algo",
+                    "desc": "Send ALGO to the app to mint"
                 },
                 {
                     "type": "byte[2]",
-                    "name": "nonce"
+                    "name": "nonce",
+                    "desc": "The nonce used to create the box to store the delayed mint"
                 }
             ],
             "returns": {
@@ -260,14 +309,17 @@
         },
         {
             "name": "claim_delayed_mint",
+            "desc": "Claim delayed mint after 320 rounds",
             "args": [
                 {
                     "type": "address",
-                    "name": "receiver"
+                    "name": "receiver",
+                    "desc": "The address the claim the delayed mint for"
                 },
                 {
                     "type": "byte[2]",
-                    "name": "nonce"
+                    "name": "nonce",
+                    "desc": "The nonce used to create the box which stores the delayed mint"
                 }
             ],
             "returns": {
@@ -276,14 +328,17 @@
         },
         {
             "name": "burn",
+            "desc": "Send xALGO to the app and receive ALGO",
             "args": [
                 {
                     "type": "axfer",
-                    "name": "send_xalgo"
+                    "name": "send_xalgo",
+                    "desc": "Send xALGO to the app to burn"
                 },
                 {
                     "type": "uint64",
-                    "name": "min_received"
+                    "name": "min_received",
+                    "desc": "The minimum amount of ALGO to receive in return"
                 }
             ],
             "returns": {
@@ -292,13 +347,16 @@
         },
         {
             "name": "get_xalgo_rate",
+            "desc": "Get the conversion rate between xALGO and ALGO",
             "args": [],
             "returns": {
-                "type": "(uint64,uint64,byte[])"
+                "type": "(uint64,uint64,byte[])",
+                "desc": "Array of [algo_balance, x_algo_circulating_supply, proposers_balances]"
             }
         },
         {
             "name": "dummy",
+            "desc": "Dummy call to the app to bypass foreign accounts limit",
             "args": [],
             "returns": {
                 "type": "void"
