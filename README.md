@@ -41,7 +41,7 @@ Make sure port 8080 is free as the private network setup for testing will use th
 Run all tests from root directory using:
 
 ```bash
-PYTHONPATH="./contracts" npm run test
+npm run test
 ```
 
 or single test file using:

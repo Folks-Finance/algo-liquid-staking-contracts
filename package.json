@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "test": "jest --runInBand"
+    "test": "PYTHONPATH='./contracts' jest --runInBand"
   },
   "dependencies": {
     "algosdk": "^2.8.0",
