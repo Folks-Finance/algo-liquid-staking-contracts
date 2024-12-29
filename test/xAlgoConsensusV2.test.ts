@@ -228,17 +228,21 @@ describe("Algo Consensus V2", () => {
   });
 
   describe("initialise", () => {
-    test("succeeds for admin", async () => {
+    test("succeeds", async () => {
       const oldState = await parseXAlgoConsensusV1GlobalState(algodClient, xAlgoAppId);
+      const algoBalance = await getAlgoBalance(algodClient, proposer0.addr) - BigInt(0.1e6);
 
       // initialise
-      const tx = prepareInitialiseXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, admin.addr, await getParams(algodClient));
-      await submitTransaction(algodClient, tx, admin.sk);
+      const proposerAddrs = [proposer0.addr];
+      const tx = prepareInitialiseXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, proposerAddrs, await getParams(algodClient));
+      await submitTransaction(algodClient, tx, user1.sk);
 
       // verify global state
       const unformattedState = await getAppGlobalState(algodClient, xAlgoAppId);
       expect(getParsedValueFromState(unformattedState, "initialised")).toBeUndefined();
       expect(getParsedValueFromState(unformattedState, "min_proposer_balance")).toBeUndefined();
+      expect(getParsedValueFromState(unformattedState, "total_active_stake")).toBeUndefined();
+      expect(getParsedValueFromState(unformattedState, "total_rewards")).toBeUndefined();
 
       const state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       expect(state.initialised).toEqual(true);
@@ -250,16 +254,16 @@ describe("Algo Consensus V2", () => {
       expect(state.maxProposerBalance).toEqual(oldState.maxProposerBalance);
       expect(state.fee).toEqual(oldState.fee);
       expect(state.premium).toEqual(oldState.premium);
+      expect(state.lastProposersActiveBalance).toEqual(algoBalance - oldState.totalPendingStake);
       expect(state.totalPendingStake).toEqual(oldState.totalPendingStake);
-      expect(state.totalActiveStake).toEqual(oldState.totalActiveStake);
-      expect(state.totalRewards).toEqual(oldState.totalRewards);
       expect(state.totalUnclaimedFees).toEqual(oldState.totalUnclaimedFees);
       expect(state.canImmediateMint).toEqual(oldState.canImmediateMint);
       expect(state.canDelayMint).toEqual(oldState.canDelayMint);
     });
 
     test("fails when already setup", async () => {
-      const tx = prepareInitialiseXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, admin.addr, await getParams(algodClient));
+      const proposerAddrs = [proposer0.addr];
+      const tx = prepareInitialiseXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, admin.addr, proposerAddrs, await getParams(algodClient));
       await expect(submitTransaction(algodClient, tx, admin.sk)).rejects.toMatchObject({
         message: expect.stringContaining("app_global_get; !; assert")
       });
@@ -402,14 +406,14 @@ describe("Algo Consensus V2", () => {
       const proposerAlgoBalanceB = await getAlgoBalance(algodClient, proposer0.addr);
       const appAlgoBalanceB = await getAlgoBalance(algodClient, getApplicationAddress(xAlgoAppId));
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const { totalActiveStake: oldTotalActiveStake } = state;
+      const { lastProposersActiveBalance: oldLastProposersActiveBalance } = state;
 
       // register
       const txns = prepareAddProposerForXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, registerAdmin.addr, proposer1.addr, await getParams(algodClient));
       const [, txId] = await submitGroupTransaction(algodClient, txns, [proposer1.sk, registerAdmin.sk]);
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      expect(state.totalActiveStake).toEqual(oldTotalActiveStake);
+      expect(state.lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance);
 
       // balances after
       const { proposersBalances } = await getXAlgoRate();
@@ -763,13 +767,13 @@ describe("Algo Consensus V2", () => {
       // send less algo than needed
       txns = prepareSubscribeXAlgoConsensusProposerToXGov(xAlgoConsensusABI, xAlgoAppId, xGovAdmin.addr, xGovFee - BigInt(1), 0, proposer0.addr, xGovRegistryAppId, admin.addr, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => xGovAdmin.sk))).rejects.toMatchObject({
-        message: expect.stringContaining("load 25; ==; assert")
+        message: expect.stringContaining("load 24; ==; assert")
       });
 
       // send more algo than needed
       txns = prepareSubscribeXAlgoConsensusProposerToXGov(xAlgoConsensusABI, xAlgoAppId, xGovAdmin.addr, xGovFee + BigInt(1), 0, proposer0.addr, xGovRegistryAppId, admin.addr, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => xGovAdmin.sk))).rejects.toMatchObject({
-        message: expect.stringContaining("load 25; ==; assert")
+        message: expect.stringContaining("load 24; ==; assert")
       });
     });
 
@@ -927,9 +931,8 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
@@ -943,15 +946,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance + mintAmount + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake + mintAmount);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // balances after
@@ -996,9 +993,8 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
@@ -1016,15 +1012,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance + mintAmount + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake + mintAmount);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // balances after
@@ -1128,9 +1118,8 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
@@ -1148,15 +1137,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake + mintAmount);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // verify delay mint box
@@ -1215,7 +1198,7 @@ describe("Algo Consensus V2", () => {
       const nonce = Uint8Array.from([0, 1]);
       const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitTransaction(algodClient, tx, user2.sk)).rejects.toMatchObject({
-        message: expect.stringContaining("store 37; load 38; assert")
+        message: expect.stringContaining("store 36; load 37; assert")
       });
     });
 
@@ -1250,9 +1233,8 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
@@ -1266,15 +1248,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance + mintAmount + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake - mintAmount);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake + mintAmount);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // balances after
@@ -1345,9 +1321,8 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
@@ -1361,15 +1336,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance - expectedReceived + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake - expectedReceived);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // balances after
@@ -1410,16 +1379,18 @@ describe("Algo Consensus V2", () => {
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
       const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
         totalPendingStake: oldTotalPendingStake,
-        totalActiveStake: oldTotalActiveStake,
-        totalRewards: oldTotalRewards ,
         totalUnclaimedFees: oldTotalUnclaimedFees ,
       } = state;
 
       // burn
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
-      const [, txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
+      const txns = [
+        prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
+        ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient)),
+      ];
+      const [, , txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: proposerTransfer0 } = txInfo['inner-txns'][0].txn;
       const { txn: proposerTransfer1 } = txInfo['inner-txns'][1].txn;
@@ -1427,15 +1398,9 @@ describe("Algo Consensus V2", () => {
 
       // state after
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const {
-        totalPendingStake,
-        totalActiveStake,
-        totalRewards,
-        totalUnclaimedFees,
-      } = state;
+      const { lastProposersActiveBalance, totalPendingStake, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance - expectedReceived + additionalRewards);
       expect(totalPendingStake).toEqual(oldTotalPendingStake);
-      expect(totalActiveStake).toEqual(oldTotalActiveStake - expectedReceived);
-      expect(totalRewards).toEqual(oldTotalRewards + additionalRewards);
       expect(totalUnclaimedFees).toEqual(oldTotalUnclaimedFees + additionalRewardsFee);
 
       // balances after
@@ -1491,7 +1456,10 @@ describe("Algo Consensus V2", () => {
 
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const { totalRewards: oldTotalRewards, totalUnclaimedFees: oldTotalUnclaimedFees } = state;
+      const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
+        totalUnclaimedFees: oldTotalUnclaimedFees,
+      } = state;
 
       // update fee
       const proposerAddrs = [proposer0.addr, proposer1.addr];
@@ -1501,8 +1469,8 @@ describe("Algo Consensus V2", () => {
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: transfer } = txInfo['inner-txns'][txInfo['inner-txns'].length - 1].txn;
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
+      expect(state.lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance - oldTotalUnclaimedFees + additionalRewards - additionalRewardsFee);
       expect(state.fee).toEqual(tempFee);
-      expect(state.totalRewards).toEqual(oldTotalRewards + additionalRewards - (oldTotalUnclaimedFees + additionalRewardsFee));
       expect(state.totalUnclaimedFees).toEqual(BigInt(0));
 
       // balances after
@@ -1541,7 +1509,10 @@ describe("Algo Consensus V2", () => {
 
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      const { totalRewards: oldTotalRewards, totalUnclaimedFees: oldTotalUnclaimedFees } = state;
+      const {
+        lastProposersActiveBalance: oldLastProposersActiveBalance,
+        totalUnclaimedFees: oldTotalUnclaimedFees,
+      } = state;
 
       // claim fee
       const proposerAddrs = [proposer0.addr, proposer1.addr];
@@ -1550,8 +1521,9 @@ describe("Algo Consensus V2", () => {
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: transfer } = txInfo['inner-txns'][txInfo['inner-txns'].length - 1].txn;
       state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
-      expect(state.totalRewards).toEqual(oldTotalRewards + additionalRewards - (oldTotalUnclaimedFees + additionalRewardsFee));
-      expect(state.totalUnclaimedFees).toEqual(BigInt(0));
+      const { lastProposersActiveBalance, totalUnclaimedFees } = state;
+      expect(lastProposersActiveBalance).toEqual(oldLastProposersActiveBalance - oldTotalUnclaimedFees + additionalRewards - additionalRewardsFee);
+      expect(totalUnclaimedFees).toEqual(BigInt(0));
 
       // balances after
       const adminAlgoBalanceA = await getAlgoBalance(algodClient, admin.addr);
@@ -1569,6 +1541,42 @@ describe("Algo Consensus V2", () => {
     });
   });
 
+  test("burns everything", async () => {
+    // get balances before
+    const { xAlgoCirculatingSupply: oldXAlgoCirculatingSupply } = await getXAlgoRate();
+    const user1XAlgoBalance = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+    const user2XAlgoBalance = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+    expect(oldXAlgoCirculatingSupply).toEqual(user1XAlgoBalance + user2XAlgoBalance);
+
+    // common
+    let txns;
+    const proposerAddrs = [proposer0.addr, proposer1.addr];
+    const minReceived = BigInt(0);
+
+    // user1 burn
+    txns = [
+      prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
+      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
+    ];
+    await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
+
+    // user2 burn
+    txns = [
+      prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user2.addr, [], await getParams(algodClient)),
+      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user2XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
+    ];
+    await submitGroupTransaction(algodClient, txns, txns.map(() => user2.sk));
+
+    // state after
+    const { lastProposersActiveBalance } = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
+    expect(lastProposersActiveBalance).toEqual(BigInt(0));
+
+    // balances after
+    const { algoBalance, xAlgoCirculatingSupply } = await getXAlgoRate();
+    expect(algoBalance).toEqual(BigInt(0));
+    expect(xAlgoCirculatingSupply).toEqual(BigInt(0));
+  });
+
   describe("update smart contract", () => {
     const boxName = "sc";
 
@@ -1581,7 +1589,7 @@ describe("Algo Consensus V2", () => {
       const prog = await compileTeal(compilePyTeal('contracts/common/clear_program', 10));
       const tx = prepareUpdateXAlgoConsensusSC(xAlgoConsensusABI, xAlgoAppId, admin.addr, boxName, prog, prog, await getParams(algodClient));
       await expect(submitTransaction(algodClient, tx, admin.sk)).rejects.toMatchObject({
-        message: expect.stringContaining("store 1; load 2; assert")
+        message: expect.stringContaining("store 5; load 6; assert")
       });
     });
 

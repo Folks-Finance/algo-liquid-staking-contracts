@@ -12,9 +12,9 @@ import {
   Transaction
 } from "algosdk";
 import { sha256 } from "js-sha256";
+import { getABIContract } from "../utils/abi";
 import { compilePyTeal, compileTeal, enc, getAppGlobalState, getParsedValueFromState } from "../utils/contracts";
 import { emptySigner, transferAlgoOrAsset } from "../utils/transaction";
-import {getABIContract} from "../utils/abi";
 
 export interface XAlgoConsensusV1GlobalState {
   initialised: boolean;
@@ -46,9 +46,8 @@ export interface XAlgoConsensusV2GlobalState {
   maxProposerBalance: bigint;
   fee: bigint;
   premium: bigint;
+  lastProposersActiveBalance: bigint;
   totalPendingStake: bigint;
-  totalActiveStake: bigint;
-  totalRewards: bigint;
   totalUnclaimedFees: bigint;
   canImmediateMint: boolean;
   canDelayMint: boolean;
@@ -107,9 +106,8 @@ export async function parseXAlgoConsensusV2GlobalState(algodClient: Algodv2, app
   const maxProposerBalance = BigInt(getParsedValueFromState(state, "max_proposer_balance") || 0);
   const fee = BigInt(getParsedValueFromState(state, "fee") || 0);
   const premium = BigInt(getParsedValueFromState(state, "premium") || 0);
+  const lastProposersActiveBalance = BigInt(getParsedValueFromState(state, "last_proposers_active_balance") || 0);
   const totalPendingStake = BigInt(getParsedValueFromState(state, "total_pending_stake") || 0);
-  const totalActiveStake = BigInt(getParsedValueFromState(state, "total_active_stake") || 0);
-  const totalRewards = BigInt(getParsedValueFromState(state, "total_rewards") || 0);
   const totalUnclaimedFees = BigInt(getParsedValueFromState(state, "total_unclaimed_fees") || 0);
   const canImmediateMint = Boolean(getParsedValueFromState(state, "can_immediate_mint"));
   const canDelayMint = Boolean(getParsedValueFromState(state, "can_delay_mint"));
@@ -125,9 +123,8 @@ export async function parseXAlgoConsensusV2GlobalState(algodClient: Algodv2, app
     maxProposerBalance,
     fee,
     premium,
+    lastProposersActiveBalance,
     totalPendingStake,
-    totalActiveStake,
-    totalRewards,
     totalUnclaimedFees,
     canImmediateMint,
     canDelayMint,
@@ -230,6 +227,7 @@ export function prepareInitialiseXAlgoConsensusV2(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   senderAddr: string,
+  proposerAddrs: string[],
   params: SuggestedParams
 ): Transaction {
   const atc = new AtomicTransactionComposer();
@@ -239,6 +237,8 @@ export function prepareInitialiseXAlgoConsensusV2(
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "initialise"),
     methodArgs: [],
+    appAccounts: proposerAddrs,
+    boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: params,
   });
   const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
