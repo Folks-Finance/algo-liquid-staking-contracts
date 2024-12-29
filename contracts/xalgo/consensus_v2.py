@@ -8,6 +8,8 @@ from consensus_state_v2 import *
 
 old_initialised_key = ConsensusV1GlobalState.INITIALISED
 old_min_proposer_balance_key = ConsensusV1GlobalState.MIN_PROPOSER_BALANCE
+old_total_active_stake = ConsensusV1GlobalState.TOTAL_ACTIVE_STAKE
+old_total_rewards_key = ConsensusV1GlobalState.TOTAL_REWARDS
 
 initialised_key = ConsensusV2GlobalState.INITIALISED
 admin_key = ConsensusV2GlobalState.ADMIN
@@ -19,9 +21,8 @@ num_proposers_key = ConsensusV2GlobalState.NUM_PROPOSERS
 max_proposer_balance_key = ConsensusV2GlobalState.MAX_PROPOSER_BALANCE
 fee_key = ConsensusV2GlobalState.FEE
 premium_key = ConsensusV2GlobalState.PREMIUM
+last_proposers_active_balance_key = ConsensusV2GlobalState.LAST_PROPOSERS_ACTIVE_BALANCE
 total_pending_stake_key = ConsensusV2GlobalState.TOTAL_PENDING_STAKE
-total_active_stake_key = ConsensusV2GlobalState.TOTAL_ACTIVE_STAKE
-total_rewards_key = ConsensusV2GlobalState.TOTAL_REWARDS
 total_unclaimed_fees_key = ConsensusV2GlobalState.TOTAL_UNCLAIMED_FEES
 can_immediate_mint_key = ConsensusV2GlobalState.CAN_IMMEDIATE_MINT
 can_delay_mint_key = ConsensusV2GlobalState.CAN_DELAY_MINT
@@ -134,21 +135,18 @@ def get_x_algo_circulating_supply():
 
 
 @Subroutine(TealType.none)
-def update_total_rewards_and_unclaimed_fees():
-    old_total_rewards = ScratchVar(TealType.uint64)
-    new_total_rewards = ScratchVar(TealType.uint64)
+def sync_proposers_active_balance_and_unclaimed_fees():
+    proposers_active_balance = ScratchVar(TealType.uint64)
+
+    total_rewards_delta = proposers_active_balance.load() - App.globalGet(last_proposers_active_balance_key)
+    unclaimed_fees_delta = mul_scale(total_rewards_delta, App.globalGet(fee_key), ONE_4_DP)
 
     return Seq(
-        # update total rewards
-        old_total_rewards.store(App.globalGet(total_rewards_key)),
-        new_total_rewards.store(get_proposers_algo_balance(Int(0)) - App.globalGet(total_pending_stake_key) - App.globalGet(total_active_stake_key)),
-        App.globalPut(total_rewards_key, new_total_rewards.load()),
+        # calculate new proposers active balance to derive delta between now and last sync
+        proposers_active_balance.store(get_proposers_algo_balance(Int(0)) - App.globalGet(total_pending_stake_key)),
         # update unclaimed fees
-        App.globalPut(total_unclaimed_fees_key, App.globalGet(total_unclaimed_fees_key) + mul_scale(
-            new_total_rewards.load() - old_total_rewards.load(),
-            App.globalGet(fee_key),
-            ONE_4_DP
-        )),
+        App.globalPut(total_unclaimed_fees_key, App.globalGet(total_unclaimed_fees_key) + unclaimed_fees_delta),
+        App.globalPut(last_proposers_active_balance_key, proposers_active_balance.load()),
     )
 
 
@@ -233,9 +231,9 @@ def send_algo_from_proposers(receiver: Expr, amt: Expr):
 @Subroutine(TealType.none)
 def send_unclaimed_fees():
     return Seq(
-        update_total_rewards_and_unclaimed_fees(),
+        sync_proposers_active_balance_and_unclaimed_fees(),
         send_algo_from_proposers( App.globalGet(admin_key), App.globalGet(total_unclaimed_fees_key)),
-        App.globalPut(total_rewards_key, App.globalGet(total_rewards_key) - App.globalGet(total_unclaimed_fees_key)),
+        App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) - App.globalGet(total_unclaimed_fees_key)),
         App.globalPut(total_unclaimed_fees_key, Int(0)),
     )
 
@@ -290,8 +288,11 @@ def initialise() -> Expr:
         # fix state set in "consensus_v1" app
         App.globalDel(old_initialised_key), # not needed in future upgrades - done in "update_sc" method
         App.globalDel(old_min_proposer_balance_key),
+        App.globalDel(old_total_active_stake),
+        App.globalDel(old_total_rewards_key),
         # set state
         App.globalPut(xgov_admin_key, App.globalGet(admin_key)),
+        App.globalPut(last_proposers_active_balance_key, get_proposers_algo_balance(Int(0)) - App.globalGet(total_pending_stake_key)),
     )
 
 
@@ -653,19 +654,13 @@ def immediate_mint(send_algo: abi.PaymentTransaction, min_received: abi.Uint64) 
         Assert(App.globalGet(initialised_key)),
         # verify can immediate mint
         Assert(App.globalGet(can_immediate_mint_key)),
+        # sync before receiving the algo as to not mistake new algo received for rewards
+        sync_proposers_active_balance_and_unclaimed_fees(),
         # check algo sent and distribute among proposers
         check_algo_sent(send_algo, Global.current_application_address()),
         receive_algo_to_proposers(algo_sent),
-        # update total active stake before total rewards as to not mistake new algo received for rewards
-        App.globalPut(total_active_stake_key, App.globalGet(total_active_stake_key) + algo_sent),
-        update_total_rewards_and_unclaimed_fees(),
-        # calculate mint amount
-        algo_balance.store(
-            App.globalGet(total_active_stake_key)
-            + App.globalGet(total_rewards_key)
-            - algo_sent
-            - App.globalGet(total_unclaimed_fees_key)
-        ),
+        # calculate mint amount before we update proposers active balance
+        algo_balance.store(App.globalGet(last_proposers_active_balance_key) - App.globalGet(total_unclaimed_fees_key)),
         mint_amount.store(
             If(
                 algo_balance.load(),
@@ -677,6 +672,8 @@ def immediate_mint(send_algo: abi.PaymentTransaction, min_received: abi.Uint64) 
                 algo_sent
             )
         ),
+        # update proposers active balance considering new algo received
+        App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) + algo_sent),
         # check mint amount and send xALGO to user
         Assert(mint_amount.load()),
         Assert(mint_amount.load() >= min_received.get()),
@@ -703,14 +700,15 @@ def delayed_mint(send_algo: abi.PaymentTransaction, nonce: abi.StaticBytes[L[2]]
         Assert(App.globalGet(initialised_key)),
         # verify can delay mint
         Assert(App.globalGet(can_delay_mint_key)),
+        # check nonce is 2 bytes
+        Assert(Len(nonce.get()) == Int(2)),
+        # sync before receiving the algo as to not mistake new algo received for rewards
+        sync_proposers_active_balance_and_unclaimed_fees(),
         # check algo sent and distribute among proposers
         check_algo_sent(send_algo, Global.current_application_address()),
         receive_algo_to_proposers(algo_sent),
-        # check nonce is 2 bytes
-        Assert(Len(nonce.get()) == Int(2)),
-        # update total pending stake before total rewards as to not mistake new algo received for rewards
+        # update total pending stake considering new algo received
         App.globalPut(total_pending_stake_key, App.globalGet(total_pending_stake_key) + algo_sent),
-        update_total_rewards_and_unclaimed_fees(),
         # save in box and fail if box already exists
         Assert(BoxCreate(box_name, DelayMintBox.SIZE)),
         BoxPut(box_name, Concat(
@@ -752,17 +750,10 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
         Assert(box.hasValue()),
         Assert(receiver.get() == delay_mint_receiver),
         Assert(Global.round() >= delay_mint_round),
-        # update total stake and total rewards
-        App.globalPut(total_pending_stake_key, App.globalGet(total_pending_stake_key) - delay_mint_stake),
-        App.globalPut(total_active_stake_key, App.globalGet(total_active_stake_key) + delay_mint_stake),
-        update_total_rewards_and_unclaimed_fees(),
-        # calculate mint amount
-        algo_balance.store(
-            App.globalGet(total_active_stake_key)
-            + App.globalGet(total_rewards_key)
-            - delay_mint_stake
-            - App.globalGet(total_unclaimed_fees_key)
-        ),
+        # sync
+        sync_proposers_active_balance_and_unclaimed_fees(),
+        # calculate mint amount before we update proposers active balance
+        algo_balance.store(App.globalGet(last_proposers_active_balance_key) - App.globalGet(total_unclaimed_fees_key)),
         mint_amount.store(
             If(
                 algo_balance.load(),
@@ -770,6 +761,9 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
                 delay_mint_stake
             )
         ),
+        # update proposers active balance and total stakes considering new algo active
+        App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) + delay_mint_stake),
+        App.globalPut(total_pending_stake_key, App.globalGet(total_pending_stake_key) - delay_mint_stake),
         # send xALGO to user
         mint_x_algo(mint_amount.load(), receiver.get()),
         # delete box so cannot claim multiple times
@@ -801,14 +795,10 @@ def burn(send_xalgo: abi.AssetTransferTransaction, min_received: abi.Uint64) -> 
         Assert(App.globalGet(initialised_key)),
         # check xALGO sent
         check_x_algo_sent(send_xalgo),
-        # update total rewards
-        update_total_rewards_and_unclaimed_fees(),
-        # calculate algo amount to send
-        algo_balance.store(
-            App.globalGet(total_active_stake_key)
-            + App.globalGet(total_rewards_key)
-            - App.globalGet(total_unclaimed_fees_key)
-        ),
+        # sync before sending the algo as to not offset sent algo against rewards
+        sync_proposers_active_balance_and_unclaimed_fees(),
+        # calculate algo amount to send before update proposers active balance
+        algo_balance.store(App.globalGet(last_proposers_active_balance_key) - App.globalGet(total_unclaimed_fees_key)),
         algo_to_send.store(
             mul_scale(
                 burn_amount,
@@ -820,8 +810,8 @@ def burn(send_xalgo: abi.AssetTransferTransaction, min_received: abi.Uint64) -> 
         Assert(algo_to_send.load()),
         Assert(algo_to_send.load() >= min_received.get()),
         send_algo_from_proposers(Txn.sender(), algo_to_send.load()),
-        # update total active stake
-        App.globalPut(total_active_stake_key, App.globalGet(total_active_stake_key) - algo_to_send.load()),
+        # update proposers active balance considering algo sent
+        App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) - algo_to_send.load()),
         # log burn
         Log(Concat(
             MethodSignature("Burn(address,uint64,uint64)"),
@@ -849,13 +839,9 @@ def get_xalgo_rate(*, output: XAlgoRate) -> Expr:
         # check proposer exists
         Assert(App.globalGet(num_proposers_key)),
         # ensure latest changes
-        update_total_rewards_and_unclaimed_fees(),
+        sync_proposers_active_balance_and_unclaimed_fees(),
         # calculate rate
-        algo_balance.set(
-            App.globalGet(total_active_stake_key)
-            + App.globalGet(total_rewards_key)
-            - App.globalGet(total_unclaimed_fees_key)
-        ),
+        algo_balance.set(App.globalGet(last_proposers_active_balance_key) - App.globalGet(total_unclaimed_fees_key)),
         x_algo_circulating_supply.set(get_x_algo_circulating_supply()),
         # set proposers balances array
         num_proposers.store(App.globalGet(num_proposers_key)),
