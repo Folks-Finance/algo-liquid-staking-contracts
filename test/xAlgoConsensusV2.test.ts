@@ -88,6 +88,7 @@ describe("Algo Consensus V2", () => {
   const fee = BigInt(0.1e4); // 10%
 
   const nonce = Uint8Array.from([0, 0]);
+  const secondNonce = Uint8Array.from([0, 1]);
   const resizeProposerBoxCost = BigInt(16000);
   const updateSCBoxCost = BigInt(32100);
   const delayMintBoxCost = BigInt(36100);
@@ -851,7 +852,7 @@ describe("Algo Consensus V2", () => {
       const mintAmount = BigInt(10e6);
       const minReceived = BigInt(0);
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("\"can_immediate_mint\"; app_global_get; assert")
       });
@@ -867,14 +868,14 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
 
       // send algo to unknown
-      let txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      let txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       txns[0].to = decodeAddress(user1.addr);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; ==; assert")
       });
 
       // send algo to proposer
-      txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       txns[0].to = decodeAddress(proposer0.addr);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; ==; assert")
@@ -886,7 +887,7 @@ describe("Algo Consensus V2", () => {
       const mintAmount = (maxProposerBalance * BigInt(2)) - algoBalance;
       const minReceived = BigInt(0);
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("app_global_get; <=; assert")
       });
@@ -903,7 +904,7 @@ describe("Algo Consensus V2", () => {
 
       // immediate mint
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; >=; assert")
       });
@@ -938,7 +939,7 @@ describe("Algo Consensus V2", () => {
 
       // immediate mint
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient));
       const [, txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: algoTransfer } = txInfo['inner-txns'][0].txn;
@@ -1002,7 +1003,7 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
       const txns = [
         prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
-        ...prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient))
+        ...prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient))
       ];
       const [, , txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
@@ -1038,6 +1039,49 @@ describe("Algo Consensus V2", () => {
       expect(xAlgoTransfer.snd).toEqual(decodeAddress(getApplicationAddress(xAlgoAppId)).publicKey);
       expect(xAlgoTransfer.arcv).toEqual(decodeAddress(user1.addr).publicKey);
     });
+
+    test("succeeds and receives xALGO at different address", async () => {
+      // airdrop rewards
+      const additionalRewards = BigInt(10e6);
+      await fundAccountWithAlgo(algodClient, proposer1.addr, additionalRewards, await getParams(algodClient));
+
+      // calculate rate
+      const { algoBalance: oldAlgoBalance, xAlgoCirculatingSupply: oldXAlgoCirculatingSupply, proposersBalances: oldProposersBalance } = await getXAlgoRate();
+      const mintAmount = BigInt(5e6);
+      const minReceived = BigInt(0);
+      const expectedReceived = mulScale(
+        mulScale(mintAmount, oldXAlgoCirculatingSupply, oldAlgoBalance),
+        ONE_16_DP - premium,
+        ONE_16_DP
+      );
+
+      // balances before
+      const user1AlgoBalanceB = await getAlgoBalance(algodClient, user1.addr);
+      const user1XAlgoBalanceB = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2AlgoBalanceB = await getAlgoBalance(algodClient, user2.addr);
+      const user2XAlgoBalanceB = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+
+      // immediate mint
+      const proposerAddrs = [proposer0.addr, proposer1.addr];
+      const txns = [
+        prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
+        ...prepareImmediateMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user2.addr, mintAmount, minReceived, proposerAddrs, await getParams(algodClient))
+      ];
+      await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
+
+      // balances after
+      const { algoBalance, xAlgoCirculatingSupply } = await getXAlgoRate();
+      const user1AlgoBalanceA = await getAlgoBalance(algodClient, user1.addr);
+      const user1XAlgoBalanceA = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2AlgoBalanceA = await getAlgoBalance(algodClient, user2.addr);
+      const user2XAlgoBalanceA = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+      expect(algoBalance).toEqual(oldAlgoBalance + mintAmount);
+      expect(xAlgoCirculatingSupply).toEqual(oldXAlgoCirculatingSupply + expectedReceived);
+      expect(user1AlgoBalanceA).toEqual(user1AlgoBalanceB - mintAmount - BigInt(6000));
+      expect(user2AlgoBalanceA).toEqual(user2AlgoBalanceB);
+      expect(user1XAlgoBalanceA).toEqual(user1XAlgoBalanceB);
+      expect(user2XAlgoBalanceA).toEqual(user2XAlgoBalanceB + expectedReceived);
+    });
   });
 
   describe("delayed mint", () => {
@@ -1051,7 +1095,7 @@ describe("Algo Consensus V2", () => {
       // delay mint
       const mintAmount = BigInt(10e6);
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("\"can_delay_mint\"; app_global_get; assert")
       });
@@ -1066,14 +1110,14 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
 
       // send algo to unknown
-      let txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      let txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
       txns[0].to = decodeAddress(user1.addr);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; ==; assert")
       });
 
       // send algo to proposer
-      txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
       txns[0].to = decodeAddress(proposer0.addr);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; ==; assert")
@@ -1084,7 +1128,7 @@ describe("Algo Consensus V2", () => {
       const { algoBalance } = await getXAlgoRate();
       const mintAmount = (maxProposerBalance * BigInt(2)) - algoBalance;
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("app_global_get; <=; assert")
       });
@@ -1093,14 +1137,14 @@ describe("Algo Consensus V2", () => {
     test("fails when nonce is not 2 bytes", async () => {
       const mintAmount = BigInt(10e6);
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
-      txns[1].appArgs![1] = Uint8Array.from([0, 0, 0, 0]);
+      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      txns[1].appArgs![2] = Uint8Array.from([0, 0, 0, 0]);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("// 2; ==; assert")
       });
     });
 
-    test("succeeds", async () => {
+    test("succeeds when receiver is sender", async () => {
       await fundAccountWithAlgo(algodClient, getApplicationAddress(xAlgoAppId), delayMintBoxCost);
 
       // airdrop rewards
@@ -1127,7 +1171,7 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
       const txns = [
         prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
-        ...prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient))
+        ...prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient))
       ];
       const [, , txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
@@ -1173,10 +1217,43 @@ describe("Algo Consensus V2", () => {
       expect(algoTransfer1.rcv).toEqual(decodeAddress(proposer1.addr).publicKey);
     });
 
+    test("succeeds when receiver is different address", async () => {
+      await fundAccountWithAlgo(algodClient, getApplicationAddress(xAlgoAppId), delayMintBoxCost);
+
+      // airdrop rewards
+      const additionalRewards = BigInt(5e6);
+      await fundAccountWithAlgo(algodClient, proposer0.addr, additionalRewards, await getParams(algodClient));
+
+      // delayed mint
+      const mintAmount = BigInt(5e6);
+      const proposerAddrs = [proposer0.addr, proposer1.addr];
+      const txns = [
+        prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
+        ...prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user2.addr, mintAmount, secondNonce, proposerAddrs, await getParams(algodClient))
+      ];
+      const [, , txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
+      const txInfo = await algodClient.pendingTransactionInformation(txId).do();
+      const round = BigInt(txInfo["confirmed-round"]);
+
+      // verify delay mint box
+      const boxName = Uint8Array.from([
+        ...enc.encode("dm"),
+        ...decodeAddress(user1.addr).publicKey,
+        ...secondNonce,
+      ]);
+      const box = await algodClient.getApplicationBoxByName(xAlgoAppId, boxName).do();
+      const boxValue = Uint8Array.from([
+        ...decodeAddress(user2.addr).publicKey,
+        ...encodeUint64(mintAmount),
+        ...encodeUint64(round + BigInt(320)),
+      ]);
+      expect(box.value).toEqual(boxValue);
+    });
+
     test("fails when box is already used", async () => {
       const mintAmount = BigInt(10e6);
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
+      const txns = prepareDelayedMintFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, user1.addr, user1.addr, mintAmount, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("box_create; assert")
       });
@@ -1186,7 +1263,7 @@ describe("Algo Consensus V2", () => {
   describe("claim delayed mint", () => {
     test("fails when nonce is not 2 bytes", async () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
+      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
       tx.appArgs![2] = Uint8Array.from([0, 0, 0, 0]);
       await expect(submitTransaction(algodClient, tx, user2.sk)).rejects.toMatchObject({
         message: expect.stringContaining("// 2; ==; assert")
@@ -1195,8 +1272,8 @@ describe("Algo Consensus V2", () => {
 
     test("fails when box does not exist", async () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const nonce = Uint8Array.from([0, 1]);
-      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
+      const nonce = Uint8Array.from([200, 79]);
+      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitTransaction(algodClient, tx, user2.sk)).rejects.toMatchObject({
         message: expect.stringContaining("store 36; load 37; assert")
       });
@@ -1204,13 +1281,13 @@ describe("Algo Consensus V2", () => {
 
     test("fails when 320 rounds hasn't passed", async () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
+      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
       await expect(submitTransaction(algodClient, tx, user2.sk)).rejects.toMatchObject({
         message: expect.stringContaining("extract_uint64; >=; assert")
       });
     });
 
-    test("succeeds", async () => {
+    test("succeeds when receiver is minter", async () => {
       // airdrop rewards
       const additionalRewards = BigInt(5e6);
       await fundAccountWithAlgo(algodClient, proposer1.addr, additionalRewards, await getParams(algodClient));
@@ -1240,7 +1317,7 @@ describe("Algo Consensus V2", () => {
 
       // claim delay mint
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
+      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user1.addr, user1.addr, nonce, proposerAddrs, await getParams(algodClient));
       const txId = await submitTransaction(algodClient, tx, user2.sk);
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: transfer } = txInfo['inner-txns'][0].txn;
@@ -1274,6 +1351,50 @@ describe("Algo Consensus V2", () => {
         fail("request should fail");
       } catch (error: any) {}
     });
+
+    test("succeeds when receiver is different address", async () => {
+      // airdrop rewards
+      const additionalRewards = BigInt(5e6);
+      await fundAccountWithAlgo(algodClient, proposer1.addr, additionalRewards, await getParams(algodClient));
+
+      // calculate rate
+      const { algoBalance: oldAlgoBalance, xAlgoCirculatingSupply: oldXAlgoCirculatingSupply } = await getXAlgoRate();
+      const boxName = Uint8Array.from([
+        ...enc.encode("dm"),
+        ...decodeAddress(user1.addr).publicKey,
+        ...secondNonce,
+      ]);
+      const box = await algodClient.getApplicationBoxByName(xAlgoAppId, boxName).do();
+      const mintAmount = decodeUint64(box.value.subarray(32, 40), "bigint");
+      const expectedReceived = mulScale(mintAmount, oldXAlgoCirculatingSupply, oldAlgoBalance);
+
+      // balances before
+      const adminXAlgoBalanceB = await getAssetBalance(algodClient, admin.addr, xAlgoId);
+      const user1XAlgoBalanceB = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2XAlgoBalanceB = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+
+      // claim delay mint
+      const proposerAddrs = [proposer0.addr, proposer1.addr];
+      const tx = prepareClaimDelayedMintFromXAlgoConsensus(xAlgoConsensusABI, xAlgoAppId, xAlgoId, admin.addr, user1.addr, user2.addr, secondNonce, proposerAddrs, await getParams(algodClient));
+      await submitTransaction(algodClient, tx, admin.sk);
+
+      // balances after
+      const { algoBalance, xAlgoCirculatingSupply } = await getXAlgoRate();
+      const adminXAlgoBalanceA = await getAssetBalance(algodClient, admin.addr, xAlgoId);
+      const user1XAlgoBalanceA = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2XAlgoBalanceA = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+      expect(algoBalance).toEqual(oldAlgoBalance + mintAmount);
+      expect(xAlgoCirculatingSupply).toEqual(oldXAlgoCirculatingSupply + expectedReceived);
+      expect(adminXAlgoBalanceA).toEqual(adminXAlgoBalanceB);
+      expect(user1XAlgoBalanceA).toEqual(user1XAlgoBalanceB);
+      expect(user2XAlgoBalanceA).toEqual(user2XAlgoBalanceB + expectedReceived);
+
+      // verify delay mint box
+      try {
+        await algodClient.getApplicationBoxByName(xAlgoAppId, boxName).do();
+        fail("request should fail");
+      } catch (error: any) {}
+    });
   });
 
   describe("burn", () => {
@@ -1283,7 +1404,7 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
 
       // send x algo to unknown
-      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
       txns[0].to = decodeAddress(user1.addr);
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("global CurrentApplicationAddress; ==; assert")
@@ -1297,7 +1418,7 @@ describe("Algo Consensus V2", () => {
 
       // send x algo to unknown
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
       await expect(submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk))).rejects.toMatchObject({
         message: expect.stringContaining("frame_dig -1; >=; assert")
       });
@@ -1328,7 +1449,7 @@ describe("Algo Consensus V2", () => {
 
       // burn
       const proposerAddrs = [proposer0.addr, proposer1.addr];
-      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
+      const txns = prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient));
       const [, txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
       const { txn: proposerTransfer } = txInfo['inner-txns'][0].txn;
@@ -1367,14 +1488,15 @@ describe("Algo Consensus V2", () => {
       // ensure allocation will come from both proposers
       const { algoBalance: oldAlgoBalance, xAlgoCirculatingSupply: oldXAlgoCirculatingSupply, proposersBalances: oldProposersBalance } = await getXAlgoRate();
       expect(oldProposersBalance[1]).toBeGreaterThan(oldProposersBalance[0]);
-      const excessReceivedAmount = BigInt(5e6);
       const diffReceivedAmount = oldProposersBalance[1] - oldProposersBalance[0];
-      const expectedReceived = excessReceivedAmount + diffReceivedAmount;
+      let excessReceivedAmount = BigInt(5e6);
+      let expectedReceived = excessReceivedAmount + diffReceivedAmount;
 
       // calculate rate
       const minReceived = BigInt(0);
       const burnAmount = mulScaleRoundUp(expectedReceived, oldXAlgoCirculatingSupply, oldAlgoBalance);
-      expect(expectedReceived).toEqual(mulScale(burnAmount, oldAlgoBalance, oldXAlgoCirculatingSupply));
+      expectedReceived = mulScale(burnAmount, oldAlgoBalance, oldXAlgoCirculatingSupply);
+      excessReceivedAmount = expectedReceived - diffReceivedAmount;
 
       // state before
       let state = await parseXAlgoConsensusV2GlobalState(algodClient, xAlgoAppId);
@@ -1388,7 +1510,7 @@ describe("Algo Consensus V2", () => {
       const proposerAddrs = [proposer0.addr, proposer1.addr];
       const txns = [
         prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
-        ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient)),
+        ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient)),
       ];
       const [, , txId] = await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
       const txInfo = await algodClient.pendingTransactionInformation(txId).do();
@@ -1407,11 +1529,11 @@ describe("Algo Consensus V2", () => {
       const { algoBalance, xAlgoCirculatingSupply, proposersBalances } = await getXAlgoRate();
       expect(algoBalance).toEqual(oldAlgoBalance - expectedReceived);
       expect(xAlgoCirculatingSupply).toEqual(oldXAlgoCirculatingSupply - burnAmount);
-      expect(proposersBalances[0]).toEqual(oldProposersBalance[0] - excessReceivedAmount / BigInt(2));
+      expect(proposersBalances[0]).toEqual(oldProposersBalance[0] - excessReceivedAmount / BigInt(2) - excessReceivedAmount % BigInt(2));
       expect(proposersBalances[1]).toEqual(oldProposersBalance[1] - diffReceivedAmount - excessReceivedAmount / BigInt(2));
       expect(txInfo['inner-txns'].length).toEqual(3);
       expect(proposerTransfer0.type).toEqual("pay");
-      expect(proposerTransfer0.amt).toEqual(Number(excessReceivedAmount / BigInt(2)));
+      expect(proposerTransfer0.amt).toEqual(Number(excessReceivedAmount / BigInt(2) + excessReceivedAmount % BigInt(2)));
       expect(proposerTransfer0.snd).toEqual(decodeAddress(proposer0.addr).publicKey);
       expect(proposerTransfer0.rcv).toEqual(decodeAddress(getApplicationAddress(xAlgoAppId)).publicKey);
       expect(proposerTransfer1.type).toEqual("pay");
@@ -1422,6 +1544,45 @@ describe("Algo Consensus V2", () => {
       expect(userTransfer.amt).toEqual(Number(expectedReceived));
       expect(userTransfer.snd).toEqual(decodeAddress(getApplicationAddress(xAlgoAppId)).publicKey);
       expect(userTransfer.rcv).toEqual(decodeAddress(user1.addr).publicKey);
+    });
+
+    test("succeeds and receives ALGO at different address", async () => {
+      // airdrop rewards
+      const additionalRewards = BigInt(10e6);
+      await fundAccountWithAlgo(algodClient, proposer1.addr, additionalRewards, await getParams(algodClient));
+
+      // calculate rate
+      const { algoBalance: oldAlgoBalance, xAlgoCirculatingSupply: oldXAlgoCirculatingSupply } = await getXAlgoRate();
+      const burnAmount = BigInt(5e6);
+      const minReceived = BigInt(0);
+      const expectedReceived = mulScale(burnAmount, oldAlgoBalance, oldXAlgoCirculatingSupply);
+
+      // balances before
+      const user1AlgoBalanceB = await getAlgoBalance(algodClient, user1.addr);
+      const user1XAlgoBalanceB = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2AlgoBalanceB = await getAlgoBalance(algodClient, user2.addr);
+      const user2XAlgoBalanceB = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+
+      // burn
+      const proposerAddrs = [proposer0.addr, proposer1.addr];
+      const txns = [
+        prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
+        ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user2.addr, burnAmount, minReceived, proposerAddrs, await getParams(algodClient)),
+      ];
+      await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
+
+      // balances after
+      const { algoBalance, xAlgoCirculatingSupply } = await getXAlgoRate();
+      const user1AlgoBalanceA = await getAlgoBalance(algodClient, user1.addr);
+      const user1XAlgoBalanceA = await getAssetBalance(algodClient, user1.addr, xAlgoId);
+      const user2AlgoBalanceA = await getAlgoBalance(algodClient, user2.addr);
+      const user2XAlgoBalanceA = await getAssetBalance(algodClient, user2.addr, xAlgoId);
+      expect(algoBalance).toEqual(oldAlgoBalance - expectedReceived);
+      expect(xAlgoCirculatingSupply).toEqual(oldXAlgoCirculatingSupply - burnAmount);
+      expect(user1AlgoBalanceA).toEqual(user1AlgoBalanceB - BigInt(6000));
+      expect(user2AlgoBalanceA).toEqual(user2AlgoBalanceB + expectedReceived);
+      expect(user1XAlgoBalanceA).toEqual(user1XAlgoBalanceB - burnAmount);
+      expect(user2XAlgoBalanceA).toEqual(user2XAlgoBalanceB);
     });
   });
 
@@ -1556,14 +1717,14 @@ describe("Algo Consensus V2", () => {
     // user1 burn
     txns = [
       prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user1.addr, [], await getParams(algodClient)),
-      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
+      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user1.addr, user1.addr, user1XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
     ];
     await submitGroupTransaction(algodClient, txns, txns.map(() => user1.sk));
 
     // user2 burn
     txns = [
       prepareXAlgoConsensusDummyCall(xAlgoConsensusABI, xAlgoAppId, user2.addr, [], await getParams(algodClient)),
-      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user2XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
+      ...prepareBurnFromXAlgoConsensusV2(xAlgoConsensusABI, xAlgoAppId, xAlgoId, user2.addr, user2.addr, user2XAlgoBalance, minReceived, proposerAddrs, await getParams(algodClient)),
     ];
     await submitGroupTransaction(algodClient, txns, txns.map(() => user2.sk));
 

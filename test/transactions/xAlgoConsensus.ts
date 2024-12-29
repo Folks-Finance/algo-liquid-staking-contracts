@@ -654,12 +654,13 @@ export function prepareImmediateMintFromXAlgoConsensusV2(
   xAlgoConsensusAppId: number,
   xAlgoId: number,
   userAddr: string,
+  receiverAddr: string,
   mintAmount: number | bigint,
   minReceived: number | bigint,
   proposerAddrs: string[],
   params: SuggestedParams
 ): Transaction[] {
-  if (proposerAddrs.length > 4) throw Error("Need to use dummy txn(s)");
+  if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
   const sendAlgo = {
     txn: transferAlgoOrAsset(0, userAddr, getApplicationAddress(xAlgoConsensusAppId), mintAmount, params),
@@ -671,8 +672,8 @@ export function prepareImmediateMintFromXAlgoConsensusV2(
     signer: emptySigner,
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "immediate_mint"),
-    methodArgs: [sendAlgo, minReceived],
-    appAccounts: proposerAddrs,
+    methodArgs: [sendAlgo, receiverAddr, minReceived],
+    appAccounts: [receiverAddr, ...proposerAddrs],
     appForeignAssets: [xAlgoId],
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
@@ -684,6 +685,7 @@ export function prepareDelayedMintFromXAlgoConsensusV2(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   userAddr: string,
+  receiverAddr: string,
   mintAmount: number | bigint,
   nonce: Uint8Array,
   proposerAddrs: string[],
@@ -707,7 +709,7 @@ export function prepareDelayedMintFromXAlgoConsensusV2(
     signer: emptySigner,
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "delayed_mint"),
-    methodArgs: [sendAlgo, nonce],
+    methodArgs: [sendAlgo, receiverAddr, nonce],
     appAccounts: proposerAddrs,
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
@@ -723,6 +725,7 @@ export function prepareClaimDelayedMintFromXAlgoConsensus(
   xAlgoConsensusAppId: number,
   xAlgoId: number,
   senderAddr: string,
+  minterAddr: string,
   receiverAddr: string,
   nonce: Uint8Array,
   proposerAddrs: string[],
@@ -732,7 +735,7 @@ export function prepareClaimDelayedMintFromXAlgoConsensus(
 
   const boxName = Uint8Array.from([
     ...enc.encode("dm"),
-    ...decodeAddress(receiverAddr).publicKey,
+    ...decodeAddress(minterAddr).publicKey,
     ...nonce,
   ]);
 
@@ -742,7 +745,7 @@ export function prepareClaimDelayedMintFromXAlgoConsensus(
     signer: emptySigner,
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "claim_delayed_mint"),
-    methodArgs: [receiverAddr, nonce],
+    methodArgs: [minterAddr, nonce],
     appAccounts: [receiverAddr, ...proposerAddrs],
     appForeignAssets: [xAlgoId],
     boxes: [
@@ -792,12 +795,13 @@ export function prepareBurnFromXAlgoConsensusV2(
   xAlgoConsensusAppId: number,
   xAlgoId: number,
   userAddr: string,
+  receiverAddr: string,
   burnAmount: number | bigint,
   minReceived: number | bigint,
   proposerAddrs: string[],
   params: SuggestedParams
 ): Transaction[] {
-  if (proposerAddrs.length > 4) throw Error("Need to use dummy txn(s)");
+  if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
   const sendXAlgo = {
     txn: transferAlgoOrAsset(xAlgoId, userAddr, getApplicationAddress(xAlgoConsensusAppId), burnAmount, params),
@@ -809,8 +813,8 @@ export function prepareBurnFromXAlgoConsensusV2(
     signer: emptySigner,
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "burn"),
-    methodArgs: [sendXAlgo, minReceived],
-    appAccounts: proposerAddrs,
+    methodArgs: [sendXAlgo, receiverAddr, minReceived],
+    appAccounts: [receiverAddr, ...proposerAddrs],
     appForeignAssets: [xAlgoId],
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
