@@ -386,6 +386,8 @@ def add_proposer(proposer: abi.Account) -> Expr:
         Assert(BoxCreate(Concat(AddedProposerBox.NAME, proposer.address()), Int(0))),
         BoxReplace(ProposersBox.NAME, num_proposers.load() * ProposersBox.ADDRESS_SIZE, proposer.address()),
         App.globalPut(num_proposers_key, num_proposers.load() + Int(1)),
+        # log add proposer
+        Log(Concat(MethodSignature("AddProposer(address)"), proposer.address())),
     )
 
 
@@ -643,7 +645,7 @@ def unsubscribe_xgov(proposer_index: abi.Uint8, xgov_registry: abi.Application) 
 
 
 @router.method(no_op=CallConfig.CALL)
-def immediate_mint(send_algo: abi.PaymentTransaction, min_received: abi.Uint64) -> Expr:
+def immediate_mint(send_algo: abi.PaymentTransaction, receiver: abi.Address, min_received: abi.Uint64) -> Expr:
     algo_sent = send_algo.get().amount()
     algo_balance = ScratchVar(TealType.uint64)
     mint_amount = ScratchVar(TealType.uint64)
@@ -677,11 +679,12 @@ def immediate_mint(send_algo: abi.PaymentTransaction, min_received: abi.Uint64) 
         # check mint amount and send xALGO to user
         Assert(mint_amount.load()),
         Assert(mint_amount.load() >= min_received.get()),
-        mint_x_algo(mint_amount.load(), Txn.sender()),
+        mint_x_algo(mint_amount.load(), receiver.get()),
         # log mint
         Log(Concat(
-            MethodSignature("ImmediateMint(address,uint64,uint64)"),
+            MethodSignature("ImmediateMint(address,address,uint64,uint64)"),
             Txn.sender(),
+            receiver.get(),
             Itob(algo_sent),
             Itob(mint_amount.load()),
         )),
@@ -689,7 +692,7 @@ def immediate_mint(send_algo: abi.PaymentTransaction, min_received: abi.Uint64) 
 
 
 @router.method(no_op=CallConfig.CALL)
-def delayed_mint(send_algo: abi.PaymentTransaction, nonce: abi.StaticBytes[L[2]]) -> Expr:
+def delayed_mint(send_algo: abi.PaymentTransaction, receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> Expr:
     algo_sent = send_algo.get().amount()
 
     box_name = Concat(DelayMintBox.NAME_PREFIX, Txn.sender(), nonce.get())
@@ -711,24 +714,21 @@ def delayed_mint(send_algo: abi.PaymentTransaction, nonce: abi.StaticBytes[L[2]]
         App.globalPut(total_pending_stake_key, App.globalGet(total_pending_stake_key) + algo_sent),
         # save in box and fail if box already exists
         Assert(BoxCreate(box_name, DelayMintBox.SIZE)),
-        BoxPut(box_name, Concat(
-            Txn.sender(),
-            Itob(algo_sent),
-            Itob(Global.round() + Int(320))
-        )),
+        BoxPut(box_name, Concat(receiver.get(), Itob(algo_sent), Itob(Global.round() + Int(320)))),
         # log so can retrieve info for claiming
         Log(Concat(
-            MethodSignature("DelayedMint(byte[36],address,uint64)"),
+            MethodSignature("DelayedMint(byte[36],address,address,uint64)"),
             box_name,
             Txn.sender(),
+            receiver.get(),
             Itob(algo_sent),
         )),
     )
 
 
 @router.method(no_op=CallConfig.CALL)
-def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> Expr:
-    box_name = Concat(DelayMintBox.NAME_PREFIX, receiver.get(), nonce.get())
+def claim_delayed_mint(minter: abi.Address, nonce: abi.StaticBytes[L[2]]) -> Expr:
+    box_name = Concat(DelayMintBox.NAME_PREFIX, minter.get(), nonce.get())
     box = BoxGet(box_name)
 
     delay_mint_receiver = Extract(box.value(), DelayMintBox.RECEIVER, Int(32))
@@ -748,7 +748,6 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
         # check box
         box,
         Assert(box.hasValue()),
-        Assert(receiver.get() == delay_mint_receiver),
         Assert(Global.round() >= delay_mint_round),
         # sync
         sync_proposers_active_balance_and_unclaimed_fees(),
@@ -765,7 +764,7 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
         App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) + delay_mint_stake),
         App.globalPut(total_pending_stake_key, App.globalGet(total_pending_stake_key) - delay_mint_stake),
         # send xALGO to user
-        mint_x_algo(mint_amount.load(), receiver.get()),
+        mint_x_algo(mint_amount.load(), delay_mint_receiver),
         # delete box so cannot claim multiple times
         Assert(BoxDelete(box_name)),
         # give box min balance to sender as incentive
@@ -774,9 +773,10 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
         InnerTxnBuilder.Submit(),
         # log so can retrieve info for claiming
         Log(Concat(
-            MethodSignature("ClaimDelayedMint(byte[36],address,uint64,uint64)"),
+            MethodSignature("ClaimDelayedMint(byte[36],address,address,uint64,uint64)"),
             box_name,
-            receiver.get(),
+            minter.get(),
+            delay_mint_receiver,
             Itob(delay_mint_stake),
             Itob(mint_amount.load()),
         )),
@@ -784,7 +784,7 @@ def claim_delayed_mint(receiver: abi.Address, nonce: abi.StaticBytes[L[2]]) -> E
 
 
 @router.method(no_op=CallConfig.CALL)
-def burn(send_xalgo: abi.AssetTransferTransaction, min_received: abi.Uint64) -> Expr:
+def burn(send_xalgo: abi.AssetTransferTransaction, receiver: abi.Address, min_received: abi.Uint64) -> Expr:
     burn_amount = send_xalgo.get().asset_amount()
     algo_balance = ScratchVar(TealType.uint64)
     algo_to_send = ScratchVar(TealType.uint64)
@@ -809,7 +809,7 @@ def burn(send_xalgo: abi.AssetTransferTransaction, min_received: abi.Uint64) -> 
         # check amount and send ALGO to user
         Assert(algo_to_send.load()),
         Assert(algo_to_send.load() >= min_received.get()),
-        send_algo_from_proposers(Txn.sender(), algo_to_send.load()),
+        send_algo_from_proposers(receiver.get(), algo_to_send.load()),
         # update proposers active balance considering algo sent
         App.globalPut(last_proposers_active_balance_key, App.globalGet(last_proposers_active_balance_key) - algo_to_send.load()),
         # log burn
