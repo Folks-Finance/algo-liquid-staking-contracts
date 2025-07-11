@@ -4,7 +4,7 @@
 
 This repository contains the PyTeal implementation for the Folks Finance ALGO Liquid Staking protocol.
 
-Please refer to the [protocol design document](https://docs.google.com/document/d/1w-0ZmpWGTGrFl46PNhjmguEKj3ChnnFnMM3X_is1R9M/edit?usp=sharing) for a comprehensive report on the design and implementation details of the protocol.
+Please refer to the [protocol design document](https://docs.google.com/document/d/1fQYGz5NOJO1UWUzyLxPmpCF3dQf7ePeGnT9oXPaS8p0/edit?usp=sharing) for a comprehensive report on the design and implementation details of the protocol.
 
 ## Requirements
 
