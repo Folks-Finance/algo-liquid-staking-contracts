@@ -3,29 +3,23 @@ from pyteal import *
 from common.math_lib import ONE_4_DP, ONE_16_DP, mul_scale, minimum
 from common.checks import *
 from common.inner_txn import *
-from testing.consensus_state_v1 import ConsensusV1GlobalState
-from consensus_state_v2 import *
+from consensus_state_v3 import *
 
-old_initialised_key = ConsensusV1GlobalState.INITIALISED
-old_min_proposer_balance_key = ConsensusV1GlobalState.MIN_PROPOSER_BALANCE
-old_total_active_stake = ConsensusV1GlobalState.TOTAL_ACTIVE_STAKE
-old_total_rewards_key = ConsensusV1GlobalState.TOTAL_REWARDS
-
-initialised_key = ConsensusV2GlobalState.INITIALISED
-admin_key = ConsensusV2GlobalState.ADMIN
-register_admin_key = ConsensusV2GlobalState.REGISTER_ADMIN
-xgov_admin_key = ConsensusV2GlobalState.XGOV_ADMIN
-x_algo_id_key = ConsensusV2GlobalState.X_ALGO_ID
-time_delay_key = ConsensusV2GlobalState.TIME_DELAY
-num_proposers_key = ConsensusV2GlobalState.NUM_PROPOSERS
-max_proposer_balance_key = ConsensusV2GlobalState.MAX_PROPOSER_BALANCE
-fee_key = ConsensusV2GlobalState.FEE
-premium_key = ConsensusV2GlobalState.PREMIUM
-last_proposers_active_balance_key = ConsensusV2GlobalState.LAST_PROPOSERS_ACTIVE_BALANCE
-total_pending_stake_key = ConsensusV2GlobalState.TOTAL_PENDING_STAKE
-total_unclaimed_fees_key = ConsensusV2GlobalState.TOTAL_UNCLAIMED_FEES
-can_immediate_mint_key = ConsensusV2GlobalState.CAN_IMMEDIATE_MINT
-can_delay_mint_key = ConsensusV2GlobalState.CAN_DELAY_MINT
+initialised_key = ConsensusV3GlobalState.INITIALISED
+admin_key = ConsensusV3GlobalState.ADMIN
+register_admin_key = ConsensusV3GlobalState.REGISTER_ADMIN
+xgov_admin_key = ConsensusV3GlobalState.XGOV_ADMIN
+x_algo_id_key = ConsensusV3GlobalState.X_ALGO_ID
+time_delay_key = ConsensusV3GlobalState.TIME_DELAY
+num_proposers_key = ConsensusV3GlobalState.NUM_PROPOSERS
+max_proposer_balance_key = ConsensusV3GlobalState.MAX_PROPOSER_BALANCE
+fee_key = ConsensusV3GlobalState.FEE
+premium_key = ConsensusV3GlobalState.PREMIUM
+last_proposers_active_balance_key = ConsensusV3GlobalState.LAST_PROPOSERS_ACTIVE_BALANCE
+total_pending_stake_key = ConsensusV3GlobalState.TOTAL_PENDING_STAKE
+total_unclaimed_fees_key = ConsensusV3GlobalState.TOTAL_UNCLAIMED_FEES
+can_immediate_mint_key = ConsensusV3GlobalState.CAN_IMMEDIATE_MINT
+can_delay_mint_key = ConsensusV3GlobalState.CAN_DELAY_MINT
 
 
 @Subroutine(TealType.none)
@@ -285,14 +279,7 @@ def initialise() -> Expr:
         # ensure not initialised
         Assert(Not(App.globalGet(initialised_key))),
         App.globalPut(initialised_key, Int(1)),
-        # fix state set in "consensus_v1" app
-        App.globalDel(old_initialised_key), # not needed in future upgrades - done in "update_sc" method
-        App.globalDel(old_min_proposer_balance_key),
-        App.globalDel(old_total_active_stake),
-        App.globalDel(old_total_rewards_key),
-        # set state
-        App.globalPut(xgov_admin_key, App.globalGet(admin_key)),
-        App.globalPut(last_proposers_active_balance_key, get_proposers_algo_balance(Int(0)) - App.globalGet(total_pending_stake_key)),
+        # no state to change
     )
 
 
@@ -327,6 +314,9 @@ def schedule_update_sc(approval_sha256: abi.StaticBytes[L[32]], clear_sha256: ab
         Assert(App.globalGet(initialised_key)),
         # verify caller is admin
         check_admin_call(),
+        # verify program hash are 32 bytes
+        Assert(Len(approval_sha256.get()) == Int(32)),
+        Assert(Len(clear_sha256.get()) == Int(32)),
         # calculate timestamp and store in scratch space for repeated access
         timestamp.store(Global.latest_timestamp() + App.globalGet(time_delay_key)),
         # can override box
@@ -487,6 +477,8 @@ def set_proposer_admin(proposer_index: abi.Uint8, new_proposer_admin: abi.Addres
         box_name.store(Concat(AddedProposerBox.NAME, get_proposer(proposer_index.get()))),
         box,
         Assert(box.hasValue()),
+        # check address passed is 32 bytes
+        address_length_check(new_proposer_admin),
         # set proposer admin according to who is sender and if there is an existing proposer admin
         If(
             is_register_admin_call(),
@@ -596,6 +588,8 @@ def subscribe_xgov(
         Assert(App.globalGet(initialised_key)),
         # verify caller is xgov admin
         check_xgov_admin_call(),
+        # check address passed is 32 bytes
+        address_length_check(voting_address),
         # check proposer exists
         Assert(proposer_index.get() < App.globalGet(num_proposers_key)),
         # prepare call
@@ -656,6 +650,8 @@ def immediate_mint(send_algo: abi.PaymentTransaction, receiver: abi.Address, min
         Assert(App.globalGet(initialised_key)),
         # verify can immediate mint
         Assert(App.globalGet(can_immediate_mint_key)),
+        # check address passed is 32 bytes
+        address_length_check(receiver),
         # sync before receiving the algo as to not mistake new algo received for rewards
         sync_proposers_active_balance_and_unclaimed_fees(),
         # check algo sent and distribute among proposers
@@ -703,6 +699,8 @@ def delayed_mint(send_algo: abi.PaymentTransaction, receiver: abi.Address, nonce
         Assert(App.globalGet(initialised_key)),
         # verify can delay mint
         Assert(App.globalGet(can_delay_mint_key)),
+        # check address passed is 32 bytes
+        address_length_check(receiver),
         # check nonce is 2 bytes
         Assert(Len(nonce.get()) == Int(2)),
         # sync before receiving the algo as to not mistake new algo received for rewards
@@ -743,6 +741,8 @@ def claim_delayed_mint(minter: abi.Address, nonce: abi.StaticBytes[L[2]]) -> Exp
         rekey_and_close_to_check(),
         # ensure initialised
         Assert(App.globalGet(initialised_key)),
+        # check address passed is 32 bytes
+        address_length_check(minter),
         # check nonce is 2 bytes
         Assert(Len(nonce.get()) == Int(2)),
         # check box
@@ -793,6 +793,8 @@ def burn(send_xalgo: abi.AssetTransferTransaction, receiver: abi.Address, min_re
         rekey_and_close_to_check(),
         # ensure initialised
         Assert(App.globalGet(initialised_key)),
+        # check address passed is 32 bytes
+        address_length_check(receiver),
         # check xALGO sent
         check_x_algo_sent(send_xalgo),
         # sync before sending the algo as to not offset sent algo against rewards

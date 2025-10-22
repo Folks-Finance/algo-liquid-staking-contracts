@@ -11,7 +11,7 @@ export async function advancePrevBlockTimestamp(algodClient: Algodv2, secs: numb
   // add block for new timestamp
   const txId = await fundAccountWithAlgo(algodClient, funder.addr, 0);
   const txInfo = await algodClient.pendingTransactionInformation(txId).do();
-  const { block } = await algodClient.block(txInfo['confirmed-round']).do();
+  const { block } = await algodClient.block(txInfo["confirmed-round"]).do();
 
   // reset offset
   await algodClient.setBlockOffsetTimestamp(0).do();
@@ -22,6 +22,6 @@ export async function advancePrevBlockTimestamp(algodClient: Algodv2, secs: numb
 
 export async function advanceBlockRounds(algodClient: Algodv2, rounds: number): Promise<void> {
   for (let i = 0; i < rounds; i++) {
-    await fundAccountWithAlgo(algodClient, funder.addr, 0)
+    await fundAccountWithAlgo(algodClient, funder.addr, 0);
   }
 }

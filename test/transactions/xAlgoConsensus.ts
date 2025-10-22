@@ -9,33 +9,14 @@ import {
   makePaymentTxnWithSuggestedParams,
   OnApplicationComplete,
   SuggestedParams,
-  Transaction
+  Transaction,
 } from "algosdk";
 import { sha256 } from "js-sha256";
 import { getABIContract } from "../utils/abi";
 import { compilePyTeal, compileTeal, enc, getAppGlobalState, getParsedValueFromState } from "../utils/contracts";
 import { emptySigner, transferAlgoOrAsset } from "../utils/transaction";
 
-export interface XAlgoConsensusV1GlobalState {
-  initialised: boolean;
-  admin: string;
-  registerAdmin: string;
-  xAlgoId: number;
-  timeDelay: bigint;
-  numProposers: bigint;
-  minProposerBalance: bigint;
-  maxProposerBalance: bigint;
-  fee: bigint;
-  premium: bigint;
-  totalPendingStake: bigint;
-  totalActiveStake: bigint;
-  totalRewards: bigint;
-  totalUnclaimedFees: bigint;
-  canImmediateMint: boolean;
-  canDelayMint: boolean;
-}
-
-export interface XAlgoConsensusV2GlobalState {
+export interface XAlgoConsensusGlobalState {
   initialised: boolean;
   admin: string;
   registerAdmin: string;
@@ -53,47 +34,10 @@ export interface XAlgoConsensusV2GlobalState {
   canDelayMint: boolean;
 }
 
-export async function parseXAlgoConsensusV1GlobalState(algodClient: Algodv2, appId: number): Promise<XAlgoConsensusV1GlobalState> {
-  const state = await getAppGlobalState(algodClient, appId);
-
-  const initialised = Boolean(getParsedValueFromState(state, "initialised"));
-  const admin = encodeAddress(Buffer.from(String(getParsedValueFromState(state, "admin")), "base64"));
-  const registerAdmin = encodeAddress(Buffer.from(String(getParsedValueFromState(state, "register_admin")), "base64"));
-  const xAlgoId = Number(getParsedValueFromState(state, "x_algo_id") || 0);
-  const timeDelay = BigInt(getParsedValueFromState(state, "time_delay") || 0);
-  const numProposers = BigInt(getParsedValueFromState(state, "num_proposers") || 0);
-  const minProposerBalance = BigInt(getParsedValueFromState(state, "min_proposer_balance") || 0);
-  const maxProposerBalance = BigInt(getParsedValueFromState(state, "max_proposer_balance") || 0);
-  const fee = BigInt(getParsedValueFromState(state, "fee") || 0);
-  const premium = BigInt(getParsedValueFromState(state, "premium") || 0);
-  const totalPendingStake = BigInt(getParsedValueFromState(state, "total_pending_stake") || 0);
-  const totalActiveStake = BigInt(getParsedValueFromState(state, "total_active_stake") || 0);
-  const totalRewards = BigInt(getParsedValueFromState(state, "total_rewards") || 0);
-  const totalUnclaimedFees = BigInt(getParsedValueFromState(state, "total_unclaimed_fees") || 0);
-  const canImmediateMint = Boolean(getParsedValueFromState(state, "can_immediate_mint"));
-  const canDelayMint = Boolean(getParsedValueFromState(state, "can_delay_mint"));
-
-  return {
-    initialised,
-    admin,
-    registerAdmin,
-    xAlgoId,
-    timeDelay,
-    numProposers,
-    minProposerBalance,
-    maxProposerBalance,
-    fee,
-    premium,
-    totalPendingStake,
-    totalActiveStake,
-    totalRewards,
-    totalUnclaimedFees,
-    canImmediateMint,
-    canDelayMint,
-  }
-}
-
-export async function parseXAlgoConsensusV2GlobalState(algodClient: Algodv2, appId: number): Promise<XAlgoConsensusV2GlobalState> {
+export async function parseXAlgoConsensusGlobalState(
+  algodClient: Algodv2,
+  appId: number,
+): Promise<XAlgoConsensusGlobalState> {
   const state = await getAppGlobalState(algodClient, appId);
 
   const initialised = Boolean(getParsedValueFromState(state, "init"));
@@ -128,25 +72,25 @@ export async function parseXAlgoConsensusV2GlobalState(algodClient: Algodv2, app
     totalUnclaimedFees,
     canImmediateMint,
     canDelayMint,
-  }
+  };
 }
 
-export async function prepareCreateXAlgoConsensusV1(
+export async function prepareCreateXAlgoConsensusV2(
   creatorAddr: string,
   adminAddr: string,
   registerAdminAddr: string,
-  minProposerBalance: number | bigint,
+  xGovAdminAddr: string,
   maxProposerBalance: number | bigint,
   premium: number | bigint,
   fee: number | bigint,
   params: SuggestedParams,
-): Promise<{ tx: Transaction, abi: ABIContract }> {
+): Promise<{ tx: Transaction; abi: ABIContract }> {
   // compile approval and clear program
-  const approval = await compileTeal(compilePyTeal('contracts/testing/consensus_v1'));
-  const clear = await compileTeal(compilePyTeal('contracts/common/clear_program', 9));
+  const approval = await compileTeal(compilePyTeal("contracts/testing/consensus_v2"));
+  const clear = await compileTeal(compilePyTeal("contracts/common/clear_program", 10));
 
   // get ABI contract
-  const abi = getABIContract('contracts/testing/consensus_v1');
+  const abi = getABIContract("contracts/testing/consensus_v2");
 
   // depply app txn
   const atc = new AtomicTransactionComposer();
@@ -155,7 +99,7 @@ export async function prepareCreateXAlgoConsensusV1(
     signer: emptySigner,
     appID: 0,
     method: getMethodByName(abi.methods, "create"),
-    methodArgs: [adminAddr, registerAdminAddr, minProposerBalance, maxProposerBalance, premium, fee],
+    methodArgs: [adminAddr, registerAdminAddr, xGovAdminAddr, maxProposerBalance, premium, fee],
     approvalProgram: approval,
     clearProgram: clear,
     numGlobalInts: 32,
@@ -165,18 +109,29 @@ export async function prepareCreateXAlgoConsensusV1(
     extraPages: 3,
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return { tx: txns[0], abi };
 }
 
-export function prepareInitialiseXAlgoConsensusV1(
+export function prepareInitialiseXAlgoConsensusV2(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   senderAddr: string,
   proposerAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
-   const rekeyTx = makePaymentTxnWithSuggestedParams(proposerAddr, proposerAddr, 0, undefined, undefined,{ ...params, flatFee: true, fee: 0 }, getApplicationAddress(xAlgoConsensusAppId));
+  const rekeyTx = makePaymentTxnWithSuggestedParams(
+    proposerAddr,
+    proposerAddr,
+    0,
+    undefined,
+    undefined,
+    { ...params, flatFee: true, fee: 0 },
+    getApplicationAddress(xAlgoConsensusAppId),
+  );
 
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -187,27 +142,33 @@ export function prepareInitialiseXAlgoConsensusV1(
     methodArgs: [proposerAddr],
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
-      { appIndex: xAlgoConsensusAppId, name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]) },
+      {
+        appIndex: xAlgoConsensusAppId,
+        name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]),
+      },
     ],
     suggestedParams: { ...params, flatFee: true, fee: 3000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return [rekeyTx, txns[0]];
 }
 
-export function prepareMintFromXAlgoConsensusV1(
+export function prepareMintFromXAlgoConsensus(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   xAlgoId: number,
   userAddr: string,
   mintAmount: number | bigint,
   proposerAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   const sendAlgo = {
     txn: transferAlgoOrAsset(0, userAddr, proposerAddr, mintAmount, params),
     signer: emptySigner,
-  }
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: userAddr,
@@ -220,15 +181,17 @@ export function prepareMintFromXAlgoConsensusV1(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 2000 },
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
 
-export function prepareInitialiseXAlgoConsensusV2(
+export function prepareInitialiseXAlgoConsensusV3(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   senderAddr: string,
-  proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -237,11 +200,12 @@ export function prepareInitialiseXAlgoConsensusV2(
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "initialise"),
     methodArgs: [],
-    appAccounts: proposerAddrs,
-    boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -251,7 +215,7 @@ export function prepareUpdateXAlgoConsensusAdmin(
   adminType: string,
   adminAddr: string,
   newAdminAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -262,7 +226,10 @@ export function prepareUpdateXAlgoConsensusAdmin(
     methodArgs: [adminType, newAdminAddr],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -273,7 +240,7 @@ export function prepareScheduleXAlgoConsensusSCUpdate(
   boxName: string,
   approval: Uint8Array,
   clear: Uint8Array,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const approvalSha256 = Uint8Array.from(Buffer.from(sha256(approval), "hex"));
   const clearSha256 = Uint8Array.from(Buffer.from(sha256(clear), "hex"));
@@ -288,7 +255,10 @@ export function prepareScheduleXAlgoConsensusSCUpdate(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode(boxName) }],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -299,7 +269,7 @@ export function prepareUpdateXAlgoConsensusSC(
   boxName: string,
   approvalSha256: Uint8Array,
   clearSha256: Uint8Array,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -313,7 +283,10 @@ export function prepareUpdateXAlgoConsensusSC(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode(boxName) }],
     suggestedParams: { ...params, flatFee: true, fee: 2000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -322,9 +295,17 @@ export function prepareAddProposerForXAlgoConsensus(
   xAlgoConsensusAppId: number,
   registerAdminAddr: string,
   proposerAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
-  const rekeyTx = makePaymentTxnWithSuggestedParams(proposerAddr, proposerAddr, 0, undefined, undefined,{ ...params, flatFee: true, fee: 0 }, getApplicationAddress(xAlgoConsensusAppId));
+  const rekeyTx = makePaymentTxnWithSuggestedParams(
+    proposerAddr,
+    proposerAddr,
+    0,
+    undefined,
+    undefined,
+    { ...params, flatFee: true, fee: 0 },
+    getApplicationAddress(xAlgoConsensusAppId),
+  );
 
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -335,11 +316,17 @@ export function prepareAddProposerForXAlgoConsensus(
     methodArgs: [proposerAddr],
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
-      { appIndex: xAlgoConsensusAppId, name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]) },
+      {
+        appIndex: xAlgoConsensusAppId,
+        name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]),
+      },
     ],
     suggestedParams: { ...params, flatFee: true, fee: 3000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 
   return [rekeyTx, txns[0]];
 }
@@ -353,7 +340,7 @@ export function prepareRebalanceXAlgoConsensusProposers(
   amount: number | bigint,
   proposerAddr0: string,
   proposerAddr1: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -366,7 +353,10 @@ export function prepareRebalanceXAlgoConsensusProposers(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 2000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -376,7 +366,7 @@ export function prepareUpdateXAlgoConsensusProposerRange(
   adminAddr: string,
   minProposerBalance: number | bigint,
   maxProposerBalance: number | bigint,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -387,7 +377,7 @@ export function prepareUpdateXAlgoConsensusProposerRange(
     methodArgs: [minProposerBalance, maxProposerBalance],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({txn}) => {
+  const txns = atc.buildGroup().map(({ txn }) => {
     txn.group = undefined;
     return txn;
   });
@@ -399,7 +389,7 @@ export function prepareUpdateXAlgoConsensusMaxProposerBalance(
   xAlgoConsensusAppId: number,
   adminAddr: string,
   maxProposerBalance: number | bigint,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -410,20 +400,20 @@ export function prepareUpdateXAlgoConsensusMaxProposerBalance(
     methodArgs: [maxProposerBalance],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({txn}) => {
+  const txns = atc.buildGroup().map(({ txn }) => {
     txn.group = undefined;
     return txn;
   });
   return txns[0];
 }
 
-export function prepareUpdateXAlgoConsensusV2Fee(
+export function prepareUpdateXAlgoConsensusFee(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   adminAddr: string,
   proposerAddrs: string[],
   fee: number | bigint,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   if (proposerAddrs.length > 4) throw Error("Need to use dummy txn(s)");
 
@@ -438,17 +428,20 @@ export function prepareUpdateXAlgoConsensusV2Fee(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
-export function prepareClaimXAlgoConsensusV2Fee(
+export function prepareClaimXAlgoConsensusFee(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   senderAddr: string,
   adminAddr: string,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
@@ -463,7 +456,10 @@ export function prepareClaimXAlgoConsensusV2Fee(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -472,7 +468,7 @@ export function prepareUpdateXAlgoConsensusPremium(
   xAlgoConsensusAppId: number,
   adminAddr: string,
   premium: number | bigint,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -483,7 +479,10 @@ export function prepareUpdateXAlgoConsensusPremium(
     methodArgs: [premium],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -493,7 +492,7 @@ export function preparePauseXAlgoConsensusMinting(
   adminAddr: string,
   mintingType: string,
   toPause: boolean,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -504,7 +503,10 @@ export function preparePauseXAlgoConsensusMinting(
     methodArgs: [mintingType, toPause],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -515,7 +517,7 @@ export function prepareSetXAlgoConsensusProposerAdmin(
   proposerIndex: number | bigint,
   proposerAddr: string,
   newProposerAdminAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -526,11 +528,17 @@ export function prepareSetXAlgoConsensusProposerAdmin(
     methodArgs: [proposerIndex, newProposerAdminAddr],
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
-      { appIndex: xAlgoConsensusAppId, name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]) },
+      {
+        appIndex: xAlgoConsensusAppId,
+        name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]),
+      },
     ],
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -547,27 +555,42 @@ export function prepareRegisterXAlgoConsensusOnline(
   voteFirstRound: number | bigint,
   voteLastRound: number | bigint,
   voteKeyDilution: number | bigint,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   const fundCall = {
     txn: transferAlgoOrAsset(0, senderAddr, proposerAddr, registerFeeAmount, params),
-    signer: emptySigner
-  }
+    signer: emptySigner,
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: senderAddr,
     signer: emptySigner,
     appID: xAlgoConsensusAppId,
     method: getMethodByName(xAlgoConsensusABI.methods, "register_online"),
-    methodArgs: [fundCall, proposerIndex, encodeAddress(voteKey), encodeAddress(selectionKey), stateProofKey, voteFirstRound, voteLastRound, voteKeyDilution],
+    methodArgs: [
+      fundCall,
+      proposerIndex,
+      encodeAddress(voteKey),
+      encodeAddress(selectionKey),
+      stateProofKey,
+      voteFirstRound,
+      voteLastRound,
+      voteKeyDilution,
+    ],
     appAccounts: [proposerAddr],
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
-      { appIndex: xAlgoConsensusAppId, name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]) },
+      {
+        appIndex: xAlgoConsensusAppId,
+        name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]),
+      },
     ],
     suggestedParams: params,
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
 
 export function prepareRegisterXAlgoConsensusOffline(
@@ -576,7 +599,7 @@ export function prepareRegisterXAlgoConsensusOffline(
   senderAddr: string,
   proposerIndex: number | bigint,
   proposerAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -588,11 +611,17 @@ export function prepareRegisterXAlgoConsensusOffline(
     appAccounts: [proposerAddr],
     boxes: [
       { appIndex: xAlgoConsensusAppId, name: enc.encode("pr") },
-      { appIndex: xAlgoConsensusAppId, name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]) },
+      {
+        appIndex: xAlgoConsensusAppId,
+        name: Uint8Array.from([...enc.encode("ap"), ...decodeAddress(proposerAddr).publicKey]),
+      },
     ],
     suggestedParams: { ...params, flatFee: true, fee: 2000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
@@ -605,12 +634,12 @@ export function prepareSubscribeXAlgoConsensusProposerToXGov(
   proposerAddr: string,
   xGovRegistryAppId: number,
   votingAddr: string,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   const fundCall = {
     txn: transferAlgoOrAsset(0, senderAddr, getApplicationAddress(xAlgoConsensusAppId), xGovFeeAmount, params),
-    signer: emptySigner
-  }
+    signer: emptySigner,
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: senderAddr,
@@ -622,7 +651,10 @@ export function prepareSubscribeXAlgoConsensusProposerToXGov(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 3000 },
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
 
 export function prepareUnsubscribeXAlgoConsensusProposerFromXGov(
@@ -632,7 +664,7 @@ export function prepareUnsubscribeXAlgoConsensusProposerFromXGov(
   proposerIndex: number | bigint,
   proposerAddr: string,
   xGovRegistryAppId: number,
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -645,11 +677,14 @@ export function prepareUnsubscribeXAlgoConsensusProposerFromXGov(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 2000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
-export function prepareImmediateMintFromXAlgoConsensusV2(
+export function prepareImmediateMintFromXAlgoConsensus(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   xAlgoId: number,
@@ -658,14 +693,14 @@ export function prepareImmediateMintFromXAlgoConsensusV2(
   mintAmount: number | bigint,
   minReceived: number | bigint,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
   const sendAlgo = {
     txn: transferAlgoOrAsset(0, userAddr, getApplicationAddress(xAlgoConsensusAppId), mintAmount, params),
     signer: emptySigner,
-  }
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: userAddr,
@@ -678,10 +713,13 @@ export function prepareImmediateMintFromXAlgoConsensusV2(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
 
-export function prepareDelayedMintFromXAlgoConsensusV2(
+export function prepareDelayedMintFromXAlgoConsensus(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   userAddr: string,
@@ -689,20 +727,16 @@ export function prepareDelayedMintFromXAlgoConsensusV2(
   mintAmount: number | bigint,
   nonce: Uint8Array,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   if (proposerAddrs.length > 4) throw Error("Need to use dummy txn(s)");
 
-  const boxName = Uint8Array.from([
-    ...enc.encode("dm"),
-    ...decodeAddress(userAddr).publicKey,
-    ...nonce,
-  ]);
+  const boxName = Uint8Array.from([...enc.encode("dm"), ...decodeAddress(userAddr).publicKey, ...nonce]);
 
   const sendAlgo = {
     txn: transferAlgoOrAsset(0, userAddr, getApplicationAddress(xAlgoConsensusAppId), mintAmount, params),
     signer: emptySigner,
-  }
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: userAddr,
@@ -717,7 +751,10 @@ export function prepareDelayedMintFromXAlgoConsensusV2(
     ],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (1 + proposerAddrs.length) },
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
 
 export function prepareClaimDelayedMintFromXAlgoConsensus(
@@ -729,15 +766,11 @@ export function prepareClaimDelayedMintFromXAlgoConsensus(
   receiverAddr: string,
   nonce: Uint8Array,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
-  const boxName = Uint8Array.from([
-    ...enc.encode("dm"),
-    ...decodeAddress(minterAddr).publicKey,
-    ...nonce,
-  ]);
+  const boxName = Uint8Array.from([...enc.encode("dm"), ...decodeAddress(minterAddr).publicKey, ...nonce]);
 
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
@@ -754,43 +787,14 @@ export function prepareClaimDelayedMintFromXAlgoConsensus(
     ],
     suggestedParams: { ...params, flatFee: true, fee: 3000 },
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }
 
-export function prepareBurnFromXAlgoConsensusV1(
-  xAlgoConsensusABI: ABIContract,
-  xAlgoConsensusAppId: number,
-  xAlgoId: number,
-  userAddr: string,
-  burnAmount: number | bigint,
-  proposerIndex: number | bigint,
-  minReceived: number | bigint,
-  proposerAddrs: string[],
-  params: SuggestedParams
-): Transaction[] {
-  if (proposerAddrs.length > 4) throw Error("Need to use dummy txn(s)");
-
-  const sendXAlgo = {
-    txn: transferAlgoOrAsset(xAlgoId, userAddr, getApplicationAddress(xAlgoConsensusAppId), burnAmount, params),
-    signer: emptySigner,
-  }
-  const atc = new AtomicTransactionComposer();
-  atc.addMethodCall({
-    sender: userAddr,
-    signer: emptySigner,
-    appID: xAlgoConsensusAppId,
-    method: getMethodByName(xAlgoConsensusABI.methods, "burn"),
-    methodArgs: [sendXAlgo, proposerIndex, minReceived],
-    appAccounts: proposerAddrs,
-    appForeignAssets: [xAlgoId],
-    boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
-    suggestedParams: { ...params, flatFee: true, fee: 2000 },
-  });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
-}
-
-export function prepareBurnFromXAlgoConsensusV2(
+export function prepareBurnFromXAlgoConsensus(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   xAlgoId: number,
@@ -799,14 +803,14 @@ export function prepareBurnFromXAlgoConsensusV2(
   burnAmount: number | bigint,
   minReceived: number | bigint,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction[] {
   if (proposerAddrs.length > 3) throw Error("Need to use dummy txn(s)");
 
   const sendXAlgo = {
     txn: transferAlgoOrAsset(xAlgoId, userAddr, getApplicationAddress(xAlgoConsensusAppId), burnAmount, params),
     signer: emptySigner,
-  }
+  };
   const atc = new AtomicTransactionComposer();
   atc.addMethodCall({
     sender: userAddr,
@@ -819,16 +823,18 @@ export function prepareBurnFromXAlgoConsensusV2(
     boxes: [{ appIndex: xAlgoConsensusAppId, name: enc.encode("pr") }],
     suggestedParams: { ...params, flatFee: true, fee: 1000 * (2 + proposerAddrs.length) },
   });
-  return atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  return atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
 }
-
 
 export function prepareXAlgoConsensusDummyCall(
   xAlgoConsensusABI: ABIContract,
   xAlgoConsensusAppId: number,
   senderAddr: string,
   proposerAddrs: string[],
-  params: SuggestedParams
+  params: SuggestedParams,
 ): Transaction {
   if (proposerAddrs.length > 4) throw Error("Need to use other dummy txn(s)");
 
@@ -842,6 +848,9 @@ export function prepareXAlgoConsensusDummyCall(
     appAccounts: proposerAddrs,
     suggestedParams: params,
   });
-  const txns = atc.buildGroup().map(({ txn }) => { txn.group = undefined; return txn; });
+  const txns = atc.buildGroup().map(({ txn }) => {
+    txn.group = undefined;
+    return txn;
+  });
   return txns[0];
 }

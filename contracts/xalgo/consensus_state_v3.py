@@ -2,7 +2,7 @@ from enum import EnumMeta
 from pyteal import abi, Bytes, Int
 
 
-class ConsensusV2GlobalState(EnumMeta):
+class ConsensusV3GlobalState(EnumMeta):
     INITIALISED = Bytes("init")
     ADMIN = Bytes("admin")
     REGISTER_ADMIN = Bytes("register_admin")
