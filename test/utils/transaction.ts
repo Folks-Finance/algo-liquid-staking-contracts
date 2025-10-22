@@ -7,8 +7,8 @@ import {
   signLogicSigTransaction,
   SuggestedParams,
   Transaction,
-  waitForConfirmation as wfc
-} from 'algosdk';
+  waitForConfirmation as wfc,
+} from "algosdk";
 
 export const emptySigner = async () => [];
 
@@ -57,9 +57,9 @@ export async function submitGroupTransaction(
   });
   await algodClient.sendRawTransaction(signedTxns).do();
   await waitForConfirmation(algodClient, txns[0].txID());
-  return txns.map(txn => txn.txID());
+  return txns.map((txn) => txn.txID());
 }
 
 export const waitForConfirmation = async function (algodClient: Algodv2, txId: string, waitRounds: number = 1000) {
   await wfc(algodClient, txId, waitRounds);
-}
+};

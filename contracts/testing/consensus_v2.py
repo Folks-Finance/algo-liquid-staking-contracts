@@ -1,24 +1,23 @@
 from pyteal import *
 from common.checks import *
 from common.inner_txn import *
-from consensus_state_v1 import *
+from consensus_state_v2 import *
 
-initialised_key = ConsensusV1GlobalState.INITIALISED
-admin_key = ConsensusV1GlobalState.ADMIN
-register_admin_key = ConsensusV1GlobalState.REGISTER_ADMIN
-x_algo_id_key = ConsensusV1GlobalState.X_ALGO_ID
-time_delay_key = ConsensusV1GlobalState.TIME_DELAY
-num_proposers_key = ConsensusV1GlobalState.NUM_PROPOSERS
-min_proposer_balance_key = ConsensusV1GlobalState.MIN_PROPOSER_BALANCE
-max_proposer_balance_key = ConsensusV1GlobalState.MAX_PROPOSER_BALANCE
-fee_key = ConsensusV1GlobalState.FEE
-premium_key = ConsensusV1GlobalState.PREMIUM
-total_pending_stake_key = ConsensusV1GlobalState.TOTAL_PENDING_STAKE
-total_active_stake_key = ConsensusV1GlobalState.TOTAL_ACTIVE_STAKE
-total_rewards_key = ConsensusV1GlobalState.TOTAL_REWARDS
-total_unclaimed_fees_key = ConsensusV1GlobalState.TOTAL_UNCLAIMED_FEES
-can_immediate_mint_key = ConsensusV1GlobalState.CAN_IMMEDIATE_MINT
-can_delay_mint_key = ConsensusV1GlobalState.CAN_DELAY_MINT
+initialised_key = ConsensusV2GlobalState.INITIALISED
+admin_key = ConsensusV2GlobalState.ADMIN
+register_admin_key = ConsensusV2GlobalState.REGISTER_ADMIN
+xgov_admin_key = ConsensusV2GlobalState.XGOV_ADMIN
+x_algo_id_key = ConsensusV2GlobalState.X_ALGO_ID
+time_delay_key = ConsensusV2GlobalState.TIME_DELAY
+num_proposers_key = ConsensusV2GlobalState.NUM_PROPOSERS
+max_proposer_balance_key = ConsensusV2GlobalState.MAX_PROPOSER_BALANCE
+fee_key = ConsensusV2GlobalState.FEE
+premium_key = ConsensusV2GlobalState.PREMIUM
+last_proposers_active_balance_key = ConsensusV2GlobalState.LAST_PROPOSERS_ACTIVE_BALANCE
+total_pending_stake_key = ConsensusV2GlobalState.TOTAL_PENDING_STAKE
+total_unclaimed_fees_key = ConsensusV2GlobalState.TOTAL_UNCLAIMED_FEES
+can_immediate_mint_key = ConsensusV2GlobalState.CAN_IMMEDIATE_MINT
+can_delay_mint_key = ConsensusV2GlobalState.CAN_DELAY_MINT
 
 
 @Subroutine(TealType.bytes)
@@ -45,7 +44,10 @@ def mint_x_algo(amt: Expr, receiver: Expr):
 router = Router(
     name="Consensus",
     bare_calls=BareCallActions(
-        update_application=OnCompleteAction(action=Approve(), call_config=CallConfig.CALL),
+        update_application=OnCompleteAction(
+            action=Seq(App.globalPut(initialised_key, Int(0)), Approve()),
+            call_config=CallConfig.CALL
+        ),
     )
 )
 
@@ -54,7 +56,7 @@ router = Router(
 def create(
     admin: abi.Address,
     register_admin: abi.Address,
-    min_proposer_balance: abi.Uint64,
+    xgov_admin: abi.Address,
     max_proposer_balance: abi.Uint64,
     premium: abi.Uint64,
     fee: abi.Uint64
@@ -63,15 +65,15 @@ def create(
         App.globalPut(initialised_key, Int(1)),
         App.globalPut(admin_key, admin.get()),
         App.globalPut(register_admin_key, register_admin.get()),
+        App.globalPut(xgov_admin_key, xgov_admin.get()),
         App.globalPut(time_delay_key, Int(int(86400))),
         App.globalPut(num_proposers_key, Int(int(0))),
-        App.globalPut(min_proposer_balance_key, min_proposer_balance.get()),
         App.globalPut(max_proposer_balance_key, max_proposer_balance.get()),
         App.globalPut(fee_key, fee.get()),
         App.globalPut(premium_key, premium.get()),
+        App.globalPut(last_proposers_active_balance_key, Int(0)),
         App.globalPut(total_pending_stake_key, Int(0)),
-        App.globalPut(total_active_stake_key, Int(0)),
-        App.globalPut(total_rewards_key, Int(0)),
+        App.globalPut(total_unclaimed_fees_key, Int(0)),
         App.globalPut(total_unclaimed_fees_key, Int(0)),
         App.globalPut(can_immediate_mint_key, Int(1)),
         App.globalPut(can_delay_mint_key, Int(0)),
@@ -116,14 +118,18 @@ def initialise(proposer: abi.Account) -> Expr:
 def mint(send_algo: abi.PaymentTransaction) -> Expr:
     return Seq(
         Assert(send_algo.get().receiver() == get_proposer(Int(0))),
+        # mint 1:1
         mint_x_algo(send_algo.get().amount(), Txn.sender()),
-        App.globalPut(total_active_stake_key, App.globalGet(total_active_stake_key) + send_algo.get().amount()),
+        App.globalPut(
+            last_proposers_active_balance_key,
+            App.globalGet(last_proposers_active_balance_key) + send_algo.get().amount()
+        ),
     )
 
 
 pragma(compiler_version="0.26.1")
 approval_program, clear_program, contract = router.compile_program(
-    version=9, optimize=OptimizeOptions(scratch_slots=True)
+    version=10, optimize=OptimizeOptions(scratch_slots=True)
 )
 
 if __name__ == "__main__":

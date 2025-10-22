@@ -5,5 +5,5 @@ export function prepareOptIntoAssetTxn(addr: string, assetId: number, params: Su
 }
 
 export function prepareOptIntoAssetsTxns(addr: string, assetIds: number[], params: SuggestedParams): Transaction[] {
-  return assetIds.map(assetId => prepareOptIntoAssetTxn(addr, assetId, params));
+  return assetIds.map((assetId) => prepareOptIntoAssetTxn(addr, assetId, params));
 }

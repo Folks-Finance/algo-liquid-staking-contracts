@@ -13,8 +13,8 @@
                     "name": "register_admin"
                 },
                 {
-                    "type": "uint64",
-                    "name": "min_proposer_balance"
+                    "type": "address",
+                    "name": "xgov_admin"
                 },
                 {
                     "type": "uint64",
